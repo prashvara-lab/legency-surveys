@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#2C5F3A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Legency Lighting">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-app-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-auth-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-storage-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <title>Legency Lighting Survey</title>
+  <style>
+    :root {
+      --paper: #F3F4F2;
+      --ink: #1E232A;
+      --soft: #616B76;
+      --line: #D6DAD6;
+      --navy: #2C5F3A;
+      --card: #fff;
+      --grn: #2E8B57;
+      --req: #B4453D;
+      --amb: #E0A11B;
+      box-sizing: border-box;
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --paper: #171A1D;
+        --ink: #E7E9E6;
+        --soft: #9AA2AA;
+        --line: #2E3339;
+        --card: #1F2327;
+        --navy: #5BA885;
+      }
+    }
+    :root[data-theme="dark"] {
+      --paper: #171A1D;
+      --ink: #E7E9E6;
+      --soft: #9AA2AA;
+      --line: #2E3339;
+      --card: #1F2327;
+      --navy: #5BA885;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.5;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--paper);
+      border-bottom: 1px solid var(--line);
+      padding: calc(env(safe-area-inset-top, 0px) + 0.75rem) 1rem 0.75rem;
+    }
+    .hdr-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .hdr-top > div:first-child {
+      font-weight: 800;
+      font-size: 1.15rem;
+      letter-spacing: 0.02em;
+    }
+    .hdr-top .sub {
+      font-weight: 600;
+      font-size: 0.88rem;
+      color: var(--soft);
+    }
+    .themebtn {
+      background: transparent;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 0.25rem 0.5rem;
+    }
+    .crumb {
+      font-size: 0.9rem;
+      color: var(--soft);
+    }
+    main {
+      padding: 1rem;
+      max-width: 900px;
+      margin: 0 auto 6rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 1.2rem;
+      margin-bottom: 1rem;
+    }
+    .note {
+      font-size: 0.9rem;
+      color: var(--soft);
+      line-height: 1.4;
+    }
+    .bar {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+      background: var(--paper);
+      border-top: 1px solid var(--line);
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 15;
+    }
+    .bar button {
+      flex: 1;
+      padding: 0.7rem 1rem;
+      font-size: 0.9rem;
+    }
+    button {
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      padding: 0.6rem 1rem;
+      font-size: 0.95rem;
+    }
+    .pri {
+      background: var(--navy);
+      color: white;
+    }
+    .pri:active {
+      opacity: 0.85;
+    }
+    .gh {
+      background: transparent;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      padding: 0.5rem 0.9rem;
+      font-size: 0.9rem;
+    }
+    .gh:active {
+      background: var(--line);
+    }
+    .dng {
+      background: transparent;
+      color: var(--req);
+      border: 1px solid var(--req);
+      padding: 0.4rem 0.7rem;
+      font-size: 0.85rem;
+    }
+    input, select, textarea {
+      font-family: inherit;
+      color: inherit;
+      width: 100%;
+      padding: 0.65rem 0.7rem;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--card);
+      font-size: 1rem;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 3.5em;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0.9rem 0 0.3rem;
+    }
+    .req-mark {
+      color: var(--req);
+      font-weight: bold;
+    }
+    .fld {
+      margin-bottom: 1rem;
+    }
+    .fld.rq label::after {
+      content: ' *';
+      color: var(--req);
+    }
+    .fld.rq input, .fld.rq select, .fld.rq textarea {
+      border-color: var(--req);
+      background: rgba(180, 69, 61, 0.06);
+    }
+    .fld.ok input, .fld.ok select, .fld.ok textarea {
+      border-color: var(--grn);
+      background: rgba(46, 139, 87, 0.06);
+    }
+    h2, h3 {
+      margin: 1rem 0 0.5rem;
+    }
+    h2 {
+      font-size: 1.2rem;
+    }
+    h3 {
+      font-size: 1rem;
+    }
+    .section {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background: var(--card);
+    }
+    .section-title {
+      font-weight: 700;
+      margin-bottom: 1rem;
+      font-size: 1.05rem;
+    }
+    .site, .cust {
+      cursor: pointer;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-bottom: 0.8rem;
+      background: var(--card);
+    }
+    .site:hover, .cust:hover {
+      border-color: var(--navy);
+      background: rgba(44, 95, 58, 0.04);
+    }
+    .site-name, .cust-name {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 0.3rem;
+    }
+    .site-meta, .cust-meta {
+      font-size: 0.85rem;
+      color: var(--soft);
+    }
+    .toast {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+      left: 1rem;
+      right: 1rem;
+      background: var(--navy);
+      color: white;
+      padding: 1rem;
+      border-radius: 6px;
+      display: none;
+      z-index: 50;
+      word-break: break-word;
+      animation: slideUp 0.2s ease;
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(1rem); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-top">
+    <div>
+      <div>Legency</div>
+      <div class="sub">Lighting Survey</div>
+    </div>
+    <button class="themebtn" id="themeBtn">⚙️</button>
+  </div>
+  <div class="crumb" id="crumb"></div>
+</header>
+
+<main id="main"></main>
+<div class="bar" id="bar" style="display:none"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// Theme
+(function() {
+  try {
+    const t = localStorage.getItem('legency_theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+function themeLabel() {
+  const t = localStorage.getItem('legency_theme') || 'system';
+  return t === 'system' ? '⚙️ System' : t === 'light' ? '☀️ Light' : '🌙 Dark';
+}
+function applyTheme(t) {
+  if (t === 'system') {
+    document.documentElement.removeAttribute('data-theme');
+    try { localStorage.removeItem('legency_theme'); } catch (e) {}
+  } else {
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('legency_theme', t); } catch (e) {}
+  }
+  const b = document.getElementById('themeBtn');
+  if (b) b.textContent = themeLabel();
+}
+{
+  const b = document.getElementById('themeBtn');
+  if (b) {
+    b.textContent = themeLabel();
+    b.onclick = () => {
+      const cur = localStorage.getItem('legency_theme') || 'system';
+      applyTheme(cur === 'system' ? 'light' : cur === 'light' ? 'dark' : 'system');
+    };
+  }
+}
+
+const $ = id => document.getElementById(id);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+const esc = s => (s || '').toString().replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(toast.tm);
+  toast.tm = setTimeout(() => t.style.display = 'none', 3500);
+}
+
+// Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyDh88oZQqTuVJu0OXhUvXmFNcxL0X1O-7o",
+  authDomain: "esos-site-data-collection.firebaseapp.com",
+  projectId: "esos-site-data-collection",
+  storageBucket: "esos-site-data-collection.firebasestorage.app",
+  messagingSenderId: "906343866321",
+  appId: "1:906343866321:web:53b62a5fbf9ea5c4a6cc94"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let uidCur = null, fbReady = false;
+let customersCol, lightingSurveysCol;
+
+firebase.auth().onAuthStateChanged(async user => {
+  if (user) {
+    uidCur = user.uid;
+    customersCol = db.collection('users').doc(user.uid).collection('customers');
+    lightingSurveysCol = db.collection('users').doc(user.uid).collection('lightingSurveys');
+    fbReady = true;
+    await loadData();
+    paint();
+  } else {
+    uidCur = null;
+    fbReady = false;
+    showAuthScreen();
+  }
+});
+
+// State
+let V = { page: 'dash' };
+let cust = {};
+let sites = [];
+let surveys = [];
+
+async function loadData() {
+  if (!fbReady) return;
+  cust = {};
+  await customersCol.get().then(snap => {
+    snap.forEach(doc => {
+      const data = doc.data();
+      cust[doc.id] = data;
+    });
+  }).catch(() => {});
+  
+  sites = [];
+  const sitesCol = db.collection('users').doc(uidCur).collection('sites');
+  await sitesCol.get().then(snap => {
+    snap.forEach(doc => {
+      const data = doc.data();
+      sites.push({ id: doc.id, ...data });
+    });
+  }).catch(() => {});
+  
+  surveys = [];
+  await lightingSurveysCol.get().then(snap => {
+    snap.forEach(doc => {
+      const data = doc.data();
+      surveys.push({ id: doc.id, ...data });
+    });
+  }).catch(() => {});
+}
+
+function showAuthScreen() {
+  $('main').innerHTML = `
+    <div class="card" style="max-width: 360px; margin: 3rem auto; text-align: center;">
+      <h2>Legency Lighting</h2>
+      <p class="note" style="margin-bottom: 1.5rem;">Sign in to start collecting lighting survey data.</p>
+      <button class="pri" id="authGoogle" style="width: 100%; margin-bottom: 0.9rem;">Sign in with Google</button>
+      <div class="note" style="margin: 0 0 0.9rem;">— or use email and password —</div>
+      <input id="authEmail" type="email" placeholder="Email address" style="margin-bottom: 0.6rem;">
+      <input id="authPass" type="password" placeholder="Password" style="margin-bottom: 0.9rem;">
+      <button class="pri" id="authGo" style="width: 100%;">Sign in</button>
+      <div class="note" id="authStatus" style="margin-top: 0.7rem;"></div>
+      <div class="note" style="margin-top: 1rem;"><a id="authToggle" style="color: var(--navy); cursor: pointer;">New here? Create an account</a></div>
+    </div>
+  `;
+  
+  let mode = 'signin';
+  $('authToggle').onclick = () => {
+    mode = mode === 'signin' ? 'signup' : 'signin';
+    $('authToggle').textContent = mode === 'signin' ? 'New here? Create an account' : 'Already have an account? Sign in';
+    $('authGo').textContent = mode === 'signin' ? 'Sign in' : 'Create account';
+  };
+  
+  $('authGoogle').onclick = async () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try {
+      await auth.signInWithPopup(provider);
+    } catch (e) {
+      $('authStatus').textContent = e.message;
+    }
+  };
+  
+  $('authGo').onclick = async () => {
+    const email = $('authEmail').value.trim();
+    const pass = $('authPass').value;
+    if (!email || !pass) { toast('Email and password required'); return; }
+    try {
+      if (mode === 'signup') {
+        await auth.createUserWithEmailAndPassword(email, pass);
+      } else {
+        await auth.signInWithEmailAndPassword(email, pass);
+      }
+    } catch (e) {
+      $('authStatus').textContent = e.message;
+    }
+  };
+}
+
+function paint() {
+  if (!uidCur) { showAuthScreen(); return; }
+  
+  if (V.page === 'dash') paintDash();
+  else if (V.page === 'custlist') paintCustList();
+  else if (V.page === 'sitelist') paintSiteList();
+  else if (V.page === 'surveylist') paintSurveyList();
+  else if (V.page === 'newentry') paintNewEntry();
+  else if (V.page === 'viewentry') paintViewEntry();
+}
+
+function paintDash() {
+  $('crumb').textContent = '';
+  $('bar').style.display = 'flex';
+  $('bar').innerHTML = '<button class="pri" id="newCustBtn">+ New Customer</button>';
+  
+  let html = '<h2>Lighting Surveys</h2><p class="note">Select a customer to view or create a lighting survey.</p>';
+  
+  if (Object.keys(cust).length === 0) {
+    html += '<div class="card"><p class="note">No customers yet. Create one to get started.</p></div>';
+  } else {
+    for (const [key, data] of Object.entries(cust)) {
+      const custSites = sites.filter(s => s.custKey === key);
+      const custSurveys = surveys.filter(sv => sv.custKey === key);
+      html += `
+        <div class="cust" data-cust="${key}">
+          <div class="cust-name">${esc(data.name || 'Untitled')}</div>
+          <div class="cust-meta">${custSites.length} site${custSites.length !== 1 ? 's' : ''} — ${custSurveys.length} survey${custSurveys.length !== 1 ? 's' : ''}</div>
+        </div>
+      `;
+    }
+  }
+  
+  $('main').innerHTML = html;
+  
+  $('newCustBtn').onclick = () => {
+    const name = prompt('Customer name:');
+    if (!name) return;
+    const key = uid();
+    cust[key] = { name };
+    customersCol.doc(key).set({ name }).catch(e => toast(e.message));
+    paint();
+  };
+  
+  document.querySelectorAll('[data-cust]').forEach(el => {
+    el.onclick = () => {
+      V.custKey = el.dataset.cust;
+      V.page = 'sitelist';
+      paint();
+    };
+  });
+}
+
+function paintSiteList() {
+  const custData = cust[V.custKey];
+  $('crumb').innerHTML = `<a onclick="V.page='dash';paint()" style="cursor:pointer;color:var(--navy)">Customers</a> / ${esc(custData.name || 'Untitled')}`;
+  $('bar').style.display = 'flex';
+  $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button><button class="pri" id="newSiteBtn">+ New Site Survey</button>';
+  
+  const custSites = sites.filter(s => s.custKey === V.custKey);
+  let html = `<h2>${esc(custData.name)}</h2><p class="note">Select a site to view or add lighting data.</p>`;
+  
+  if (custSites.length === 0) {
+    html += '<div class="card"><p class="note">No sites yet. Create one to start.</p></div>';
+  } else {
+    for (const site of custSites) {
+      const siteSurveys = surveys.filter(sv => sv.siteId === site.id);
+      html += `
+        <div class="site" data-site="${site.id}">
+          <div class="site-name">${esc(site.name || 'Untitled')}</div>
+          <div class="site-meta">${siteSurveys.length} lighting survey${siteSurveys.length !== 1 ? 's' : ''}</div>
+        </div>
+      `;
+    }
+  }
+  
+  $('main').innerHTML = html;
+  
+  $('backBtn').onclick = () => { V.page = 'dash'; paint(); };
+  $('newSiteBtn').onclick = () => {
+    const name = prompt('Site name:');
+    if (!name) return;
+    const sitesCol = db.collection('users').doc(uidCur).collection('sites');
+    const id = uid();
+    sitesCol.doc(id).set({ name, custKey: V.custKey, createdAt: Date.now() }).catch(e => toast(e.message));
+    sites.push({ id, name, custKey: V.custKey });
+    paint();
+  };
+  
+  document.querySelectorAll('[data-site]').forEach(el => {
+    el.onclick = () => {
+      V.siteId = el.dataset.site;
+      V.page = 'surveylist';
+      paint();
+    };
+  });
+}
+
+function paintSurveyList() {
+  const site = sites.find(s => s.id === V.siteId);
+  $('crumb').innerHTML = `<a onclick="V.page='dash';paint()" style="cursor:pointer;color:var(--navy)">Customers</a> / ${esc(cust[V.custKey].name)} / ${esc(site.name || 'Untitled')}`;
+  $('bar').style.display = 'flex';
+  $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button><button class="pri" id="newSurveyBtn">+ New Lighting Survey</button>';
+  
+  const siteSurveys = surveys.filter(sv => sv.siteId === V.siteId);
+  let html = `<h2>${esc(site.name)}</h2><p class="note">Lighting surveys for this site.</p>`;
+  
+  if (siteSurveys.length === 0) {
+    html += '<div class="card"><p class="note">No lighting surveys yet. Create one to start collecting data.</p></div>';
+  } else {
+    for (const sv of siteSurveys) {
+      const count = (sv.entries || []).length;
+      html += `
+        <div class="site" data-sv="${sv.id}">
+          <div class="site-name">Survey ${sv.date || 'Undated'}</div>
+          <div class="site-meta">${count} luminaire${count !== 1 ? 's' : ''}</div>
+        </div>
+      `;
+    }
+  }
+  
+  $('main').innerHTML = html;
+  
+  $('backBtn').onclick = () => { V.page = 'sitelist'; paint(); };
+  $('newSurveyBtn').onclick = () => {
+    const date = new Date().toISOString().split('T')[0];
+    const sv = {
+      id: uid(),
+      siteId: V.siteId,
+      custKey: V.custKey,
+      date,
+      entries: [],
+      createdAt: Date.now()
+    };
+    surveys.push(sv);
+    lightingSurveysCol.doc(sv.id).set(sv).catch(e => toast(e.message));
+    V.surveyId = sv.id;
+    V.page = 'viewentry';
+    paint();
+  };
+  
+  document.querySelectorAll('[data-sv]').forEach(el => {
+    el.onclick = () => {
+      V.surveyId = el.dataset.sv;
+      V.page = 'viewentry';
+      paint();
+    };
+  });
+}
+
+function paintViewEntry() {
+  const site = sites.find(s => s.id === V.siteId);
+  const sv = surveys.find(s => s.id === V.surveyId);
+  $('crumb').innerHTML = `<a onclick="V.page='dash';paint()" style="cursor:pointer;color:var(--navy)">Customers</a> / <a onclick="V.custKey='${V.custKey}';V.page='sitelist';paint()" style="cursor:pointer;color:var(--navy)">${esc(cust[V.custKey].name)}</a> / <a onclick="V.page='surveylist';paint()" style="cursor:pointer;color:var(--navy)">${esc(site.name)}</a> / Survey`;
+  $('bar').style.display = 'flex';
+  $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button><button class="gh" id="exportCsvBtn">Export CSV</button><button class="pri" id="fillWbBtn">Fill Workbook</button>';
+  
+  let html = `<h2>Lighting Survey — ${esc(site.name)}</h2>`;
+  html += `<div class="note" style="margin-bottom: 1rem;">Tap <b>+ Add Luminaire</b> to log each light fitting, zone, or area.</div>`;
+  
+  if ((sv.entries || []).length > 0) {
+    html += '<h3>Logged Luminaires</h3>';
+    for (let i = 0; i < sv.entries.length; i++) {
+      const e = sv.entries[i];
+      html += `
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:start;gap:0.5rem">
+            <div>
+              <div style="font-weight:600">${esc(e.zone || '(no zone)')}</div>
+              <div class="note">${esc(e.type || '—')} • ${esc(e.tech || '—')}</div>
+              <div class="note" style="margin-top:0.3rem"><b>${e.load || '—'} kW</b> • ${e.energy || '—'} kWh/yr</div>
+            </div>
+            <button class="gh" data-edit="${i}" style="white-space:nowrap">Edit</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+  
+  html += '<button class="pri" id="addBtn" style="width:100%;margin-top:1rem">+ Add Luminaire</button>';
+  
+  $('main').innerHTML = html;
+  
+  $('backBtn').onclick = () => { V.page = 'surveylist'; paint(); };
+  $('addBtn').onclick = () => { V.entry = {}; V.entryIdx = null; V.page = 'newentry'; paint(); };
+  
+  document.querySelectorAll('[data-edit]').forEach(el => {
+    el.onclick = () => {
+      V.entryIdx = parseInt(el.dataset.edit);
+      V.entry = Object.assign({}, sv.entries[V.entryIdx]);
+      V.page = 'newentry';
+      paint();
+    };
+  });
+  
+  $('exportCsvBtn').onclick = () => exportCsv(sv);
+  $('fillWbBtn').onclick = () => fillWorkbook(sv);
+}
+
+function paintNewEntry() {
+  const site = sites.find(s => s.id === V.siteId);
+  const sv = surveys.find(s => s.id === V.surveyId);
+  const e = V.entry || {};
+  
+  $('crumb').textContent = V.entryIdx !== null ? 'Edit luminaire' : 'Add luminaire';
+  $('bar').style.display = 'flex';
+  $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button><button class="pri" id="saveBtn">Save</button>';
+  
+  const ballastLoss = {
+    'LED driver': 0,
+    'High Frequency (electronic)': 0.08,
+    'Conventional (magnetic)': 0.2,
+    'Unknown': 0.15
+  };
+  
+  const recalc = () => {
+    const lamps = parseFloat(e.lamps) || 0;
+    const watt = parseFloat(e.watt) || 0;
+    const qty = parseFloat(e.qty) || 0;
+    const bloss = ballastLoss[e.ballast] || 0.15;
+    const hours = parseFloat(e.hours) || 0;
+    const days = parseFloat(e.days) || 0;
+    
+    const perUnit = (lamps * watt * (1 + bloss)) / 1000;
+    e.load = (perUnit * qty).toFixed(2);
+    e.burnHours = Math.round(hours * days);
+    e.energy = ((e.load * e.burnHours) / 1000).toFixed(0);
+  };
+  
+  let html = `<h2>${V.entryIdx !== null ? 'Edit' : 'Add'} Luminaire</h2>`;
+  html += `
+    <div class="section">
+      <div class="fld ${e.zone ? 'ok' : 'rq'}">
+        <label>Zone / Area <span class="req-mark">*</span></label>
+        <input id="fZone" value="${esc(e.zone || '')}" placeholder="e.g. Warehouse, Office A">
+      </div>
+      
+      <div class="fld ${e.type ? 'ok' : 'rq'}">
+        <label>Type of Luminaire <span class="req-mark">*</span></label>
+        <select id="fType">
+          <option value="">Choose type</option>
+          <option ${e.type === 'Batten/strip' ? 'selected' : ''}>Batten/strip</option>
+          <option ${e.type === 'Pendant' ? 'selected' : ''}>Pendant</option>
+          <option ${e.type === 'Downlight' ? 'selected' : ''}>Downlight</option>
+          <option ${e.type === 'Spotlights' ? 'selected' : ''}>Spotlights</option>
+          <option ${e.type === 'Bollard' ? 'selected' : ''}>Bollard</option>
+          <option ${e.type === 'Wall-mounted' ? 'selected' : ''}>Wall-mounted</option>
+          <option ${e.type === 'Recessed' ? 'selected' : ''}>Recessed</option>
+          <option ${e.type === 'Other' ? 'selected' : ''}>Other</option>
+        </select>
+      </div>
+      
+      <div class="fld ${e.tech ? 'ok' : 'rq'}">
+        <label>Lamp Technology <span class="req-mark">*</span></label>
+        <select id="fTech">
+          <option value="">Choose technology</option>
+          <option ${e.tech === 'LED' ? 'selected' : ''}>LED</option>
+          <option ${e.tech === 'Fluorescent T8' ? 'selected' : ''}>Fluorescent T8</option>
+          <option ${e.tech === 'Fluorescent T5' ? 'selected' : ''}>Fluorescent T5</option>
+          <option ${e.tech === 'Halogen' ? 'selected' : ''}>Halogen</option>
+          <option ${e.tech === 'Incandescent' ? 'selected' : ''}>Incandescent</option>
+          <option ${e.tech === 'Other' ? 'selected' : ''}>Other</option>
+        </select>
+      </div>
+      
+      <div class="fld">
+        <label>Ballast / Driver Type</label>
+        <select id="fBallast">
+          <option value="">Auto-select by technology</option>
+          <option ${e.ballast === 'LED driver' ? 'selected' : ''}>LED driver (no tube)</option>
+          <option ${e.ballast === 'High Frequency (electronic)' ? 'selected' : ''}>High Frequency (electronic)</option>
+          <option ${e.ballast === 'Conventional (magnetic)' ? 'selected' : ''}>Conventional (magnetic)</option>
+          <option ${e.ballast === 'Unknown' ? 'selected' : ''}>Unknown / not recorded</option>
+        </select>
+        <div class="note">Ballast loss % is applied automatically.</div>
+      </div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
+        <div class="fld">
+          <label>Lamps per Luminaire</label>
+          <input id="fLamps" type="number" value="${e.lamps || ''}" placeholder="e.g. 2">
+        </div>
+        <div class="fld">
+          <label>Lamp Wattage (W)</label>
+          <input id="fWatt" type="number" step="0.1" value="${e.watt || ''}" placeholder="e.g. 36">
+        </div>
+      </div>
+      
+      <div class="fld ${e.qty ? 'ok' : 'rq'}">
+        <label>No. of Luminaires <span class="req-mark">*</span></label>
+        <input id="fQty" type="number" value="${e.qty || ''}" placeholder="e.g. 40">
+      </div>
+      
+      <div class="fld">
+        <label>Measured Lux Level</label>
+        <input id="fLux" type="number" value="${e.lux || ''}" placeholder="e.g. 250">
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Operating Profile</div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
+        <div class="fld">
+          <label>Hours per Day</label>
+          <input id="fHours" type="number" step="0.5" value="${e.hours || ''}" placeholder="e.g. 10">
+        </div>
+        <div class="fld">
+          <label>Days per Year</label>
+          <input id="fDays" type="number" value="${e.days || ''}" placeholder="e.g. 300">
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Controls & Notes</div>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
+        <div class="fld">
+          <label>Controls Fitted?</label>
+          <select id="fControls">
+            <option value="">—</option>
+            <option ${e.controls === 'Y' ? 'selected' : ''}>Yes</option>
+            <option ${e.controls === 'N' ? 'selected' : ''}>No</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label>Type of Control</label>
+          <input id="fCtrlType" value="${esc(e.ctrlType || '')}" placeholder="e.g. Daylight, Occupancy">
+        </div>
+      </div>
+      
+      <div class="fld">
+        <label>Comments / Condition</label>
+        <textarea id="fComments" placeholder="Age, condition, recommendations...">${esc(e.comments || '')}</textarea>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Auto-Calculated</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
+        <div>
+          <label>Total Connected Load (kW)</label>
+          <div style="padding:0.6rem;background:rgba(46,139,87,0.1);border-radius:6px;font-weight:600">${e.load || '—'}</div>
+        </div>
+        <div>
+          <label>Annual Burn Hours</label>
+          <div style="padding:0.6rem;background:rgba(46,139,87,0.1);border-radius:6px;font-weight:600">${e.burnHours || '—'}</div>
+        </div>
+        <div style="grid-column:1">
+          <label>Annual Energy (kWh)</label>
+          <div style="padding:0.6rem;background:rgba(46,139,87,0.1);border-radius:6px;font-weight:600">${e.energy || '—'}</div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  $('main').innerHTML = html;
+  
+  ['fLamps', 'fWatt', 'fQty', 'fHours', 'fDays', 'fBallast', 'fTech'].forEach(id => {
+    const el = $(id);
+    if (el) {
+      el.onchange = () => {
+        e.lamps = $('fLamps').value;
+        e.watt = $('fWatt').value;
+        e.qty = $('fQty').value;
+        e.hours = $('fHours').value;
+        e.days = $('fDays').value;
+        e.ballast = $('fBallast').value || (e.tech === 'LED' ? 'LED driver' : e.tech && /fluorescent|t5|t8/i.test(e.tech) ? 'Conventional (magnetic)' : '');
+        e.tech = $('fTech').value;
+        recalc();
+        paintNewEntry();
+      };
+    }
+  });
+  
+  $('backBtn').onclick = () => { V.page = 'viewentry'; paint(); };
+  $('saveBtn').onclick = () => {
+    e.zone = $('fZone').value.trim();
+    e.type = $('fType').value;
+    e.tech = $('fTech').value;
+    e.ballast = $('fBallast').value || (e.tech === 'LED' ? 'LED driver' : e.tech && /fluorescent|t5|t8/i.test(e.tech) ? 'Conventional (magnetic)' : '');
+    e.qty = $('fQty').value;
+    e.hours = $('fHours').value;
+    e.days = $('fDays').value;
+    e.lamps = $('fLamps').value;
+    e.watt = $('fWatt').value;
+    e.lux = $('fLux').value;
+    e.controls = $('fControls').value;
+    e.ctrlType = $('fCtrlType').value;
+    e.comments = $('fComments').value;
+    
+    recalc();
+    
+    if (!e.zone || !e.type || !e.tech || !e.qty) { toast('Required fields missing'); return; }
+    
+    if (V.entryIdx !== null) {
+      sv.entries[V.entryIdx] = e;
+    } else {
+      if (!sv.entries) sv.entries = [];
+      sv.entries.push(e);
+    }
+    
+    lightingSurveysCol.doc(V.surveyId).set(sv).catch(err => toast(err.message));
+    V.page = 'viewentry';
+    paint();
+  };
+}
+
+function exportCsv(sv) {
+  const site = sites.find(s => s.id === V.siteId);
+  const rows = [['Site', 'Zone / Area', 'Type of Luminaire', 'Lamp Technology', 'Ballast / Driver Type', 'Lamps per Luminaire', 'Lamp Wattage (W)', 'No. of Luminaires', 'Measured Lux Level', 'Controls Fitted? (Y/N)', 'Type of Control', 'Hours per Day', 'Days per Year', 'Annual Burn Hours', 'Annual Energy (kWh)', 'Comments']];
+  
+  (sv.entries || []).forEach(e => {
+    rows.push([
+      site.name,
+      e.zone || '',
+      e.type || '',
+      e.tech || '',
+      e.ballast || '',
+      e.lamps || '',
+      e.watt || '',
+      e.qty || '',
+      e.lux || '',
+      e.controls || '',
+      e.ctrlType || '',
+      e.hours || '',
+      e.days || '',
+      e.burnHours || '',
+      e.energy || '',
+      e.comments || ''
+    ]);
+  });
+  
+  const csv = rows.map(r => r.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${site.name.replace(/[^a-z0-9]+/gi, '_')}_lighting_survey.csv`;
+  a.click();
+  toast('CSV exported');
+}
+
+async function fillWorkbook(sv) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.xlsx';
+  input.onchange = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    try {
+      toast('Reading template...');
+      const data = await file.arrayBuffer();
+      const zip = new JSZip();
+      await zip.loadAsync(data);
+      
+      const sheetXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(sheetXml, 'text/xml');
+      
+      const stringsXml = await zip.file('xl/sharedStrings.xml').async('string');
+      const stringsDoc = parser.parseFromString(stringsXml, 'text/xml');
+      const strings = Array.from(stringsDoc.querySelectorAll('si > t')).map(el => el.textContent);
+      
+      const rows = doc.querySelectorAll('sheetData > row');
+      let dataRowStart = null;
+      
+      rows.forEach((row, idx) => {
+        const rowNum = parseInt(row.getAttribute('r'));
+        if (rowNum === 10) dataRowStart = idx;
+      });
+      
+      if (dataRowStart === null) {
+        toast('Could not find data rows in template');
+        return;
+      }
+      
+      const entries = sv.entries || [];
+      const entries_to_fill = entries.slice(0, 40);
+      
+      let rowIdx = dataRowStart;
+      entries_to_fill.forEach(e => {
+        if (rowIdx >= rows.length - 2) return;
+        
+        const row = rows[rowIdx];
+        const cells = row.querySelectorAll('c');
+        
+        const colMap = {
+          'A': e.zone || '',
+          'B': e.type || '',
+          'C': e.tech || '',
+          'D': e.ballast || '',
+          'E': e.lamps || '',
+          'F': e.watt || '',
+          'G': e.qty || '',
+          'H': e.lux || '',
+          'K': e.controls || '',
+          'L': e.ctrlType || '',
+          'M': e.hours || '',
+          'N': e.days || '',
+          'Q': e.comments || ''
+        };
+        
+        cells.forEach(cell => {
+          const cellRef = cell.getAttribute('r');
+          if (!cellRef) return;
+          const col = cellRef.replace(/[0-9]/g, '');
+          
+          if (colMap.hasOwnProperty(col)) {
+            const v = cell.querySelector('v');
+            if (v) cell.removeChild(v);
+            
+            const val = colMap[col];
+            if (val) {
+              const newV = doc.createElement('v');
+              newV.textContent = val;
+              cell.appendChild(newV);
+            }
+          }
+        });
+        
+        rowIdx++;
+      });
+      
+      const serializer = new XMLSerializer();
+      const newSheetXml = serializer.serializeToString(doc);
+      
+      zip.file('xl/worksheets/sheet1.xml', newSheetXml);
+      
+      const newBlob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(newBlob);
+      a.download = `${sv.date || 'lighting'}_FILLED.xlsx`;
+      a.click();
+      
+      toast('Workbook filled and downloaded');
+    } catch (err) {
+      toast('Error: ' + err.message);
+      console.error(err);
+    }
+  };
+  input.click();
+}
+
+window.onload = () => {
+  if (uidCur) loadData().then(() => paint());
+};
+
+paint();
+</script>
+
+</body>
+</html>

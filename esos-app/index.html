@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2C3E4C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Legency ESOS">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-app-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@12.19.0/firebase-storage-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<title>Legency ESOS Site Data Collection</title>
+<style>
+:root{--paper:#F3F4F2;--ink:#1E232A;--soft:#616B76;--line:#D6DAD6;--navy:#2C3E4C;--req:#B4453D;--card:#fff;--red:#C0392B;--amb:#E0A11B;--grn:#2E8B57;--optbg:#EDEFEC;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--paper:#171A1D;--ink:#E7E9E6;--soft:#9AA2AA;--line:#2E3339;--card:#1F2327;--optbg:#252A2E;--navy:#5B7A90}}
+:root[data-theme="dark"]{--paper:#171A1D;--ink:#E7E9E6;--soft:#9AA2AA;--line:#2E3339;--card:#1F2327;--optbg:#252A2E;--navy:#5B7A90}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,'Segoe UI',Roboto,sans-serif}
+h2,h3{margin:0}input,select,textarea,button{font-family:inherit;color:inherit}
+input,select,textarea{width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:6px;background:var(--card);font-size:.95rem}
+textarea{min-height:3.6em;resize:vertical;overflow:hidden}button{cursor:pointer;border:none;border-radius:6px;font-weight:600}
+.pri{background:var(--navy);color:#fff;padding:.7rem 1rem;font-size:.92rem}.gh{background:transparent;border:1px solid var(--line);padding:.5rem .8rem;font-size:.85rem}
+.dng{background:transparent;color:var(--req);border:1px solid var(--req);padding:.45rem .75rem;font-size:.82rem}
+header{position:sticky;top:0;z-index:10;background:var(--paper);padding:calc(env(safe-area-inset-top,0px) + .8rem) 1rem .6rem;border-bottom:1px solid var(--line)}
+.crumb{font-size:.8rem;color:var(--soft);margin-top:.25rem}.crumb a{color:var(--navy);cursor:pointer}
+main{padding:1rem 1rem 16rem;max-width:680px;margin:0 auto}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:8;background:var(--paper);border-top:1px solid var(--line);padding:.6rem 1rem calc(env(safe-area-inset-bottom,0px) + .6rem);display:flex;gap:.5rem}.bar button{flex:1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.85rem 1rem;margin-bottom:.65rem}
+.row{display:flex;align-items:center;gap:.7rem;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.8rem 1rem;margin-bottom:.5rem;width:100%;text-align:left;font-size:.95rem;font-weight:500}
+.row .t{flex:1}.row small{display:block;color:var(--soft);font-weight:400;font-size:.78rem;margin-top:.1rem}
+.dot{width:.9rem;height:.9rem;border-radius:50%;flex:none;background:var(--line)}.dot.r{background:var(--red)}.dot.a{background:var(--amb)}.dot.g{background:var(--grn)}.dot.n{background:transparent;border:2px solid var(--grn)}
+.dots{display:flex;gap:.25rem;margin-top:.5rem;flex-wrap:wrap}.dots .dot{width:.55rem;height:.55rem}
+.sum{font-size:.9rem;margin:.2rem 0 1rem;color:var(--soft)}
+details.blk{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-bottom:.7rem}
+details.blk>summary{padding:.75rem 1rem;font-weight:700;font-size:.95rem;cursor:pointer;list-style:none}
+details.blk>summary small{font-weight:400;color:var(--soft);margin-left:.4rem}
+.bb{padding:0 1rem 1rem}details.opt{margin-top:.8rem;background:var(--optbg);border-radius:8px;padding:.1rem .8rem .7rem}
+details.opt>summary{padding:.6rem 0;font-size:.85rem;font-weight:600;cursor:pointer}
+.note{font-size:.78rem;color:var(--soft);line-height:1.4;margin:.2rem 0 .4rem}
+.fld{margin:.6rem 0;padding-left:.6rem;border-left:3px solid transparent}.fld.rq{border-left-color:var(--req)}.fld.ok{border-left-color:var(--grn)}
+label{display:block;font-size:.8rem;color:var(--soft);margin-bottom:.2rem}.fld.rq label,.fld.ok label{color:var(--ink);font-weight:600}
+label b{color:var(--req);font-weight:600;font-size:.72rem;margin-left:.3rem}
+.inp{display:flex;gap:.4rem}.mic{flex:none;width:2.6rem;background:var(--optbg);font-size:1rem}.mic.rec{background:var(--red);color:#fff}
+.auto{padding:.55rem .7rem;background:var(--optbg);border-radius:6px;font-size:.92rem}
+.ban{padding:.6rem .8rem;border-radius:8px;font-size:.85rem;margin-bottom:.8rem;background:#F6DEDC;color:#6B2A25}.ban.ok{background:#DDEFE4;color:#1E5A38}
+.dz{border:2px dashed transparent;border-radius:12px;padding:.25rem;transition:background .15s,border-color .15s}.dz.over{border-color:var(--grn);background:rgba(46,139,87,.10)}.dzhint{font-size:.78rem;color:var(--soft);margin:.1rem 0 .4rem}
+.media{display:flex;gap:.5rem;flex-wrap:wrap;margin:.5rem 0}.thumbs{display:flex;gap:.5rem;flex-wrap:wrap}
+.th{position:relative}.th img{width:5.2rem;height:5.2rem;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.th button{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border-radius:50%;width:1.4rem;height:1.4rem;font-size:.8rem;padding:0}
+.aud{display:flex;gap:.4rem;align-items:center;margin:.3rem 0;width:100%}.aud audio{flex:1;height:2.2rem}
+.sheet-b{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:20;display:none}.sheet-b.o{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:var(--paper);border-radius:14px 14px 0 0;padding:1.1rem 1.1rem calc(env(safe-area-inset-bottom,0px) + 1.1rem);max-height:88vh;overflow:auto}
+.toast{position:fixed;left:1rem;right:1rem;bottom:5rem;z-index:30;background:#222;color:#fff;padding:.7rem 1rem;border-radius:8px;font-size:.85rem;display:none}
+.cn{font-size:1.3rem;font-weight:700}.site{border-top:1px solid var(--line);padding:.9rem 0 .3rem;cursor:pointer}.sn{font-size:.85rem;color:var(--soft);margin-bottom:.5rem}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.2rem,1fr));gap:.5rem;margin-bottom:1rem}.tile{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.6rem .7rem}.tile b{display:block;font-size:1.25rem}.tile span{font-size:.72rem;color:var(--soft)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem}.stats .tile{padding:.4rem .5rem}.stats .tile b{font-size:1.05rem}
+.prog{height:.35rem;background:var(--line);border-radius:4px;margin:.6rem 0 .3rem;overflow:hidden}.prog div{height:100%;background:var(--grn)}
+.sec{font-size:.92rem;font-weight:700;margin:1.1rem 0 .4rem;padding-bottom:.3rem;border-bottom:1px solid var(--line)}
+.themebtn{background:transparent;border:1px solid var(--line);border-radius:999px;padding:.35rem .7rem;font-size:.8rem;color:var(--ink);flex:none;white-space:nowrap;align-self:flex-start}
+.hdr-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.6rem}
+</style></head><body>
+<header><div class="hdr-top"><div><div style="font-weight:800;font-size:1.15rem;letter-spacing:.02em;line-height:1.1">Legency</div><div style="font-weight:600;font-size:.88rem;color:var(--soft)">ESOS Site Data Collection</div></div><button class="themebtn" id="themeBtn">\u2699\ufe0f</button></div><div class="crumb" id="crumb"></div></header>
+<main id="main"></main><div class="bar" id="bar" style="display:none"></div>
+<div class="sheet-b" id="sb"><div class="sheet" id="sh"></div></div><div class="toast" id="toast"></div>
+<script>
+const S={"general":{"label":"General","sys":null,"blocks":[{"n":"General","f":[["Customer Name","M","text",null,"Text field",2],["Site Name","M","text",null,"Text field",3],["Site Address","M","text",null,"Text field",4],["Site Postcode","M","text",null,"Text field",5],["Survey Date","M","text",null,"Text field",6],["Site Contact Name","M","text",null,"Text field",7],["Site Contact Telephone","M","text",null,"Text field",8],["Surveyor Name","M","text",null,"Text field",9],["Surveyor Telephone","M","text",null,"Text field",10],["MPAN(s)","M","multi",null,"Numerical - add a line for each extra MPAN (enter N/A if none)",11],["MPRN(s)","M","multi",null,"Numerical - add a line for each extra MPRN (enter N/A if none)",12],["Current Weather Conditions on day of survey (e.g. sunny/overcast)","O","text",null,"Text field",13],["Satellite coordinates (Google Earth)","O","text",null,"Numerical field",14]],"inst":[2]},{"n":"Site Overview","f":[["Site age (years)","M","number",null,"Numerical field",15],["Construction","M","text",null,"Text field",16],["EPC rating (if available)","","select",["A","B","C","D","E","F","G","Exempt"],"Text field",17],["Heritage Status","","select",["Grade I Listed","Grade II* Listed","Grade II Listed","Scheduled Monument","Not Listed","Unknown"],"Dropdown",18],["Walls (overall)","O","select",["Solid brick","Cavity wall (brick)","Steel frame","Solid (other)"],"Dropdown",19],["Walls U-Value (W/m2K)","O","select",["2","1.3–1.5","0.55–0.60","0.35–0.40","0.25–0.30","0.18"],"Dropdown",20],["Windows (overall)","O","select",["Steel/aluminium single glazed","Timber single glazed","Steel/aluminium double glazed","Secondary glazed","UPVC double glazed"],"Dropdown",21],["Windows U-Value (W/m2K)","O","select",["4.8–5.8","2.7–3.0","1.6–1.8","1.2–1.4","0.8–1.0"],"Dropdown",22],["Fabric age & condition (overall)","M","select",["A - Pre‑1919","B - 1919–1944","C - 1945–1964","D - 1965–1975","E - 1976–1982","F - 1983–1990","G - 1991–1995","H - 1996–2001","I - 2002–2005","J - 2006–2010","K - 2011–2013","L - 2014–2021","M - 2022 onwards"],"pick age band + condition",23],["Supporting construction narrative","O","area",null,"Free text. Please add a condition assessment e.g. good, fair etc.",24],["Number of Operational Zones","","auto",null,"Numerical field only",25],["Floor plan / Schematic available?","","select",["Yes","No"],"Dropdown - Yes / No. If yes, copy / photos to be saved in survey evidence pack",46],["Age of property (years)","O","number",null,"Numerical field only",47],["Property total floor area - Gross Internal Area (GIA) (m2)","","number",null,"Numerical field only",48],["Part L Building Regs age band","","select",["A - Pre‑1919","B - 1919–1944","C - 1945–1964","D - 1965–1975","E - 1976–1982","F - 1983–1990","G - 1991–1995","H - 1996–2001","I - 2002–2005","J - 2006–2010","K - 2011–2013","L - 2014–2021","M - 2022 onwards"],"Dropdown",49],["Notes on efficiency measures already implemented","","area",null,"Text field - this can include Energy Saving Champions (EnCO registered), best practice posters seen on site, solar window film, additional insulation",50]],"inst":[15]},{"n":"Electrical Overview","f":[["Area","","zone",null,"Dropdown defined by blocks listed in General - copy and add lines for each block",52],["Electrical Supply","","select",["Three-phase","single-phase","other"],"Dropdown - add line if 'other' selected",53],["HV/LV","","select",["HV","LV"],"Dropdown - HV / LV",54],["Compliant EICR Available","","select",["Yes","No"],"Dropdown - Yes / No",55],["Electrical substation in proximity","","select",["Yes","No"],"Dropdown - Yes / No",56]],"rep":true,"inst":[52,57,62,67]},{"n":"Meter Register","f":[["Meter / Sub-meter ID (MPAN / MPRN / ref)","M","meterid",null,"One block per supply and per sub-meter - copy and add lines as required. Readings are a desk job; record existence & coverage only",73],["Fuel","M","select",["Electricity","Gas","Other"],"Dropdown - Electricity / Gas / Other",74],["Serves (zones / systems)","M","area",null,"Free text - what this meter covers",75],["Half-hourly data available?","M","select",["Yes","No"],"Dropdown - Yes / No",76],["Landlord or tenant supply?","M","select",["Landlord","Tenant"],"Dropdown - Landlord / Tenant. ESOS boundary - whose energy is it to report; affects which opportunities apply",77],["Sub-meter coverage / profile notes","O","area",null,"Free text - e.g. 'big overnight base load', 'sub-meter only covers compressor house'",78]],"rep":true,"inst":[73]},{"n":"Other","f":[["Site within 500m of open water / coastline?","","select",["Yes","No"],"Dropdown - Yes / No",80],["Additional Information","","area",null,"Text field. If yes, define - lake / stream / river / sea & distance (m) from water feature",81],["Installed low carbon technology?","","select",["Yes","No"],"Dropdown - Yes / No",82],["Additional Information","","area",null,"Text field. If yes, define - Heat-pumps, biomass CHP",83],["Installed self generation technologies?","","select",["Yes","No"],"Dropdown - Yes / No",84],["Additional Information","","area",null,"Text field. If yes, define - solar, wind, CHP, etc",85],["Other fuel usage on site","","select",["Yes","No"],"Dropdown - Yes / No",86],["Additional Information","","area",null,"Text field. If yes, define - LPG, Propane, Kerosene, Diesel (for generators)",87],["On site transport","","select",["Yes","No"],"Dropdown - Yes / No",88],["Additional Information","","area",null,"Text field. If yes - define - forklifts, tractors, cleaning machines, ride-on lawnmowers etc, and fuel sources",89]],"inst":[80]},{"n":"Controls","f":[["Centralised BMS?","","select",["Yes","No"],"Dropdown - Yes / No",91],["Centralised BMS Further Details","","text",null,"If yes, define aspects of control (lighting / HVAC / all building services) and time periods and set-points",92],["Building Service","","text",null,"Text field. Lighting / HVAC / Other (to define)",93],["Time periods","","select",["Weekdays (M-F)","Weekends (Sat-Sun)","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],"Select a dropdown option for the time range.",94],["Operational set-points (°C)","","number",null,"Numerical field",95],["Back-stop set-points (°C) (if any)","","number",null,"Numerical field",96]],"inst":[91]},{"n":"Recommendations","f":[["Site Type","","select",["Office","Manufacturing","Retail","Leisure"],"Dropdown",98],["Expected Building Services (please note these are indicative, not exhaustive - all relevant building services must be captured)","","auto",null,"Automatically populated, however all relevant building services must be captured.",99],["Additional Notes","","auto",null,"Automatically populated, however all relevant building services must be captured.",100]],"inst":[98]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. lighting condition & controls, access constraints, metering quirks",102]],"inst":[102]}]},"heating":{"label":"Heating","sys":["Wet","Electric","Radiant","Gas Convector","Other"],"blocks":[{"n":"General","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3],["System Type","M","select",["Wet","Electric","Radiant","Gas Convector","Other"],"Dropdown",4],["Additional information","","area",null,"If 'Other', populate additional information with heating narrative",5]],"inst":[2]},{"n":"Wet / Radiant System 1","f":[["Boiler make and model","","text",null,"If more than one wet system / system fuel - all fields to be copied and pasted below",7],["Fuel","M","text",null,"",8],["Condensing","","text",null,"",9],["Temperature set-point (°C)","M","number",null,"",10],["Boiler input power (kW)","M","number",null,"",11],["Boiler output power (kW)","M","number",null,"",12],["Number boilers","M","text",null,"",13],["Approximate age (years)","M","select",["0-5","5-7","7-10","10-15","15-20","20+"],"",14],["Variable Speed Drives installed?","","select",["Yes","No"],"",15],["Picture of hydraulic layout if available","","text",null,"",16],["Pressurised or open-vented system","","text",null,"",17],["Plant insulation level","","text",null,"",18],["Type of emitters","","select",["Radiator","Fan coil unit","Other"],"Dropdown",19],["Additional Information","","area",null,"If 'Other', populate additional information",20],["Number of emitters","","text",null,"",21],["TRVs installed?","","select",["Yes","No"],"",22],["Location of thermostats","","text",null,"",23],["Type of controller","","text",null,"",25],["HAND/AUTO/OFF","","text",null,"",26],["Who operates/manages","","text",null,"",27],["Space set point temperature(s)","","text",null,"",28],["Monday Start Time","","time",null,"24-hour format",29],["Monday End Time","","time",null,"24-hour format",30],["Tuesday Start Time","","time",null,"24-hour format",31],["Tuesday End Time","","time",null,"24-hour format",32],["Wednesday Start Time","","time",null,"24-hour format",33],["Wednesday End Time","","time",null,"24-hour format",34],["Thursday Start Time","","time",null,"24-hour format",35],["Thursday End Time","","time",null,"24-hour format",36],["Friday Start Time","","time",null,"24-hour format",37],["Friday End Time","","time",null,"24-hour format",38],["Saturday Start Time","","time",null,"24-hour format",39],["Saturday End Time","","time",null,"24-hour format",40],["Sunday Start Time","","time",null,"24-hour format",41],["Sunday End Time","","time",null,"24-hour format",42],["Operating Weeks per Annum","","number",null,"Number",43],["Annualised Hours","","auto",null,"Automatic",44]],"inst":[7]},{"n":"Wet / Radiant System","f":[["Make and model","O","text",null,"",46],["Fuel","O","text",null,"",47],["Condensing","O","text",null,"",48],["Temperature set-point (°C)","O","number",null,"",49],["Input power (kW)","O","number",null,"",50],["Output power (kW)","O","number",null,"",51],["Number","O","text",null,"",52],["Approximate age","O","select",["0-5","5-7","7-10","10-15","15-20","20+"],"",53],["Variable Speed Drives installed?","O","select",["Yes","No"],"",54],["Picture of hydraulic layout if available","O","text",null,"",55],["Pressurised or open-vented system","O","text",null,"",56],["Plant insulation level","O","text",null,"",57],["Type of emitters","O","select",["Radiator","Fan coil unit","Other"],"Dropdown",58],["Additional Information","O","area",null,"If 'Other', populate additional information",59],["Number of emitters","O","text",null,"",60],["TRVs installed?","O","select",["Yes","No"],"",61],["Location of thermostats","O","text",null,"",62],["Type of controller","O","text",null,"",64],["HAND/AUTO/OFF","O","text",null,"",65],["Who operates/manages","O","text",null,"",66],["Space set point temperature(s) (°C)","O","number",null,"",67],["Monday Start Time","O","time",null,"24-hour format",68],["Monday End Time","O","time",null,"24-hour format",69],["Tuesday Start Time","O","time",null,"24-hour format",70],["Tuesday End Time","O","time",null,"24-hour format",71],["Wednesday Start Time","O","time",null,"24-hour format",72],["Wednesday End Time","O","time",null,"24-hour format",73],["Thursday Start Time","O","time",null,"24-hour format",74],["Thursday End Time","O","time",null,"24-hour format",75],["Friday Start Time","O","time",null,"24-hour format",76],["Friday End Time","O","time",null,"24-hour format",77],["Saturday Start Time","O","time",null,"24-hour format",78],["Saturday End Time","O","time",null,"24-hour format",79],["Sunday Start Time","O","time",null,"24-hour format",80],["Sunday End Time","O","time",null,"24-hour format",81],["Operating Weeks per Annum","O","number",null,"Number",82],["Annualised Hours","O","auto",null,"Automatic",83]],"rep":true,"inst":[46,85]},{"n":"Electric System","f":[["Type","M","select",["Radiators","Storage Heaters","Fan Convectors","Fan Coil Units","Other"],"Dropdown",124],["Additional Information","","area",null,"If 'Other', populate additional information",125],["Heater make and model","","text",null,"",126],["Heater electrical power (kW)","M","number",null,"",127],["Number of heaters","M","text",null,"",128],["Total installed power","","auto",null,"Automatically calculated.",129],["Type of controller","","text",null,"",130],["HAND/AUTO/OFF","","text",null,"",131],["Who operates/manages","","text",null,"",132],["Space set point temperature(s) (°C)","","number",null,"",133],["Monday Start Time","","time",null,"24-hour format",134],["Monday End Time","","time",null,"24-hour format",135],["Tuesday Start Time","","time",null,"24-hour format",136],["Tuesday End Time","","time",null,"24-hour format",137],["Wednesday Start Time","","time",null,"24-hour format",138],["Wednesday End Time","","time",null,"24-hour format",139],["Thursday Start Time","","time",null,"24-hour format",140],["Thursday End Time","","time",null,"24-hour format",141],["Friday Start Time","","time",null,"24-hour format",142],["Friday End Time","","time",null,"24-hour format",143],["Saturday Start Time","","time",null,"24-hour format",144],["Saturday End Time","","time",null,"24-hour format",145],["Sunday Start Time","","time",null,"24-hour format",146],["Sunday End Time","","time",null,"24-hour format",147],["Operating Weeks per Annum","","number",null,"Number",148],["Annualised Hours","","auto",null,"Automatic",149]],"inst":[124]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",151],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",152],["Estimated connected load (kW)","M","number",null,"Surveyor's own estimate for this end use",153],["Estimated annual hours","M","text",null,"Once per system / zone - default assets on the same schedule to 'as above'",154],["Load / diversity factor assumed","O","text",null,"See Methodology tab (heating seasonal load factor roughly 0.2-0.4)",155],["Estimation method & key assumptions","M","area",null,"One sentence - which Methodology tab method was used and why. Tie to the gas meter",156],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",157]],"inst":[151]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",159],["ESO Potential 2 & rationale","","area",null,"Free text field",160],["ESO Potential 3 & rationale","","area",null,"Free text field",161]],"inst":[159]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",162],["ESO Potential 2 & rationale","","area",null,"Free text field",163],["ESO Potential 3 & rationale","","area",null,"Free text field",164]],"inst":[162]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. condition, access constraints, metering quirks",166]],"inst":[166]},{"n":"Split / VRF System","rep":true,"init":0,"f":[["Location of External units","","area",null,"Free text"],["External unit Make and Model","","area",null,"Free text"],["External unit electrical power (kW)","M","number",null,"Free text"],["No. of External units","M","area",null,"Free text"],["Indoor unit Make and Model","","area",null,"Free text"],["Indoor unit electrical power (kW)","M","number",null,"Free text"],["Indoor unit cooling output (kW)","","number",null,"Free text"],["Indoor unit heating output (kW)","","number",null,"Free text"],["No. of Internal units","M","area",null,"Free text"],["System COPref","","area",null,"Free text"],["Approximate age of system (years)","","select",["0-5","5-7","7-10","10-15","15-20","20+"],"Free text"]],"default0":true},{"n":"Split / VRF System - Controls","rep":true,"init":0,"f":[["Type of controller","","area",null,"Free text"],["HAND/AUTO/OFF","","area",null,"Free text"],["Who operates/manages","","area",null,"Free text"],["Space set point temperature(s)  (°C)","M","number",null,"Numerical field only"],["Monday Start Time","","time",null,"24-hour format"],["Monday End Time","","time",null,"24-hour format"],["Tuesday Start Time","","time",null,"24-hour format"],["Tuesday End Time","","time",null,"24-hour format"],["Wednesday Start Time","","time",null,"24-hour format"],["Wednesday End Time","","time",null,"24-hour format"],["Thursday Start Time","","time",null,"24-hour format"],["Thursday End Time","","time",null,"24-hour format"],["Friday Start Time","","time",null,"24-hour format"],["Friday End Time","","time",null,"24-hour format"],["Saturday Start Time","","time",null,"24-hour format"],["Saturday End Time","","time",null,"24-hour format"],["Sunday Start Time","","time",null,"24-hour format"],["Sunday End Time","","time",null,"24-hour format"],["Operating Weeks per Annum","","number",null,"Number"],["Annualised Hours","","auto",null,"Automatic"]],"default0":true}]},"dhw":{"label":"DHW","sys":["Boiler fed calorifier","Standalone water heater","Electric immersion","Other"],"blocks":[{"n":"Domestic Hot Water","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3],["System Type","M","select",["Boiler fed calorifier","Standalone water heater","Electric immersion","Other"],"Dropdown - Boiler fed calorifier, Standalone water heater, Electric immersion, Other",4],["Additional information","","area",null,"Free text - if 'Other', populate additional information",5]],"inst":[2]},{"n":"Boiler Fed Calorifier","f":[["Dedicated boiler or same as htg system","M","select",["Dedicated boiler","Same as heating system"],"Dropdown",7],["[if dedicated] Make / model of boiler","","area",null,"Free text",8],["[if dedicated] No of boilers","M","area",null,"Free text",9],["[if dedicated] Fuel","M","area",null,"Free text",10],["[if dedicated] Boiler input power (kW)","M","number",null,"Free text",11],["[if dedicated] Boiler output power (kW)","M","number",null,"Free text",12],["Make / model of calorifier","","area",null,"Free text",13],["Number of calorifiers","","area",null,"Free text",14],["Volume of calorifier","","area",null,"Free text",15],["Diverting valve?","","select",["Yes","No"],"Free text",16],["1° pump Wattage","","area",null,"Free text",17],["1° pump VSD?","","select",["Yes","No"],"Free text",18],["Plant insulation level","","select",["As built (new)","As built (aged)","Retrofitted/replaced condition good","Retrofitted/replaced condition fair","Retrofitted/replaced condition poor"],"Dropdown",19]],"inst":[7]},{"n":"Standalone Water Heater","f":[["Make and model","","area",null,"Free text",21],["Number of water heaters","M","area",null,"Free text",22],["Fuel","M","area",null,"Free text",23],["Input power","M","area",null,"Free text",24],["Output power","","area",null,"Free text",25],["Condensing?","","select",["Yes","No"],"Free text",26],["Volume (L)","","area",null,"Free text",27],["Plant insulation level","","select",["As built (new)","As built (aged)","Retrofitted/replaced condition good","Retrofitted/replaced condition fair","Retrofitted/replaced condition poor"],"Free text",28]],"inst":[21]},{"n":"Electric Immersion","f":[["No of cylinders/tanks","M","area",null,"Free text",29],["Cylinder/tank size (m3)","","number",null,"Free text",30],["Immersion electric power (kW)","M","number",null,"Free text",31],["Low/high storage?","","select",["Yes","No"],"Free text",32],["Plant insulation level","","select",["As built (new)","As built (aged)","Retrofitted/replaced condition good","Retrofitted/replaced condition fair","Retrofitted/replaced condition poor"],"Free text",33]],"inst":[29]},{"n":"Controls 1","f":[["DHW type","M","select",["Boiler fed calorifier","Standalone water heater","Electric immersion","Other"],"Dropdown - add lines as required for use",35],["Type of controller","","area",null,"Free text",36],["HAND/AUTO/OFF","","area",null,"Free text",37],["Who operates/manages","","area",null,"Free text",38],["DHW set point temperature(s) (°C)","","number",null,"Numerical field only",39],["Monday Start Time","","time",null,"24-hour format",40],["Monday End Time","","time",null,"24-hour format",41],["Tuesday Start Time","","time",null,"24-hour format",42],["Tuesday End Time","","time",null,"24-hour format",43],["Wednesday Start Time","","time",null,"24-hour format",44],["Wednesday End Time","","time",null,"24-hour format",45],["Thursday Start Time","","time",null,"24-hour format",46],["Thursday End Time","","time",null,"24-hour format",47],["Friday Start Time","","time",null,"24-hour format",48],["Friday End Time","","time",null,"24-hour format",49],["Saturday Start Time","","time",null,"24-hour format",50],["Saturday End Time","","time",null,"24-hour format",51],["Sunday Start Time","","time",null,"24-hour format",52],["Sunday End Time","","time",null,"24-hour format",53],["Operating Weeks per Annum","","number",null,"Number",54],["Annualised Hours","","auto",null,"Automatic",55]],"inst":[35]},{"n":"Controls 2","f":[["DHW type","O","select",["Boiler fed calorifier","Standalone water heater","Electric immersion","Other"],"Dropdown - add lines as required for use",57],["Type of controller","O","area",null,"Free text",58],["HAND/AUTO/OFF","O","area",null,"Free text",59],["Who operates/manages","O","area",null,"Free text",60],["DHW set point temperature(s)  (°C)","O","number",null,"Numerical field only",61],["Monday Start Time","O","time",null,"24-hour format",62],["Monday End Time","O","time",null,"24-hour format",63],["Tuesday Start Time","O","time",null,"24-hour format",64],["Tuesday End Time","O","time",null,"24-hour format",65],["Wednesday Start Time","O","time",null,"24-hour format",66],["Wednesday End Time","O","time",null,"24-hour format",67],["Thursday Start Time","O","time",null,"24-hour format",68],["Thursday End Time","O","time",null,"24-hour format",69],["Friday Start Time","O","time",null,"24-hour format",70],["Friday End Time","O","time",null,"24-hour format",71],["Saturday Start Time","O","time",null,"24-hour format",72],["Saturday End Time","O","time",null,"24-hour format",73],["Sunday Start Time","O","time",null,"24-hour format",74],["Sunday End Time","O","time",null,"24-hour format",75],["Operating Weeks per Annum","O","number",null,"Number",76],["Annualised Hours","O","auto",null,"Automatic",77]],"inst":[57]},{"n":"End Use","f":[["Approx. no of basins","","area",null,"Free text",79],["Spray taps on basins?","","select",["Yes","No"],"Free text",80],["Approx. no of showers","","area",null,"Free text",81],["Use of DHW for catering?","","select",["Yes","No"],"Free text",82]],"inst":[79]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",84],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",85],["Estimated connected load (kW)","M","number",null,"Surveyor's own estimate for this end use",86],["Estimated annual hours","M","text",null,"Once per system / zone - default assets on the same schedule to 'as above'",87],["Load / diversity factor assumed","O","text",null,"See Methodology tab - DHW is usually a small load",88],["Estimation method & key assumptions","M","area",null,"One sentence - rated kW x hours for immersion / point-of-use, or volume & setpoint for stored",89],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",90]],"inst":[84]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",92],["ESO Potential 2 & rationale","","area",null,"Free text field",93],["ESO Potential 3 & rationale","","area",null,"Free text field",94]],"inst":[92]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",95],["ESO Potential 2 & rationale","","area",null,"Free text field",96],["ESO Potential 3 & rationale","","area",null,"Free text field",97]],"inst":[95]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. condition, access constraints, metering quirks",99]],"inst":[99]}]},"cooling":{"label":"Cooling","sys":["Split / VRF system","Central chiller","Other"],"blocks":[{"n":"Cooling","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3],["System Type","M","select",["Split / VRF system","Central chiller","Other"],"Dropdown - Split / VRF system, Central chiller, Other",4],["Additional information","","area",null,"Free text - if 'Other', populate additional information",5],["TM44 available","","select",["Yes","No"],"Dropdown - save in survey evidence pack",6]],"inst":[2]},{"n":"Split / VRF System","f":[["Location of External units","","area",null,"Free text",8],["External unit Make and Model","","area",null,"Free text",9],["External unit electrical power (kW)","M","number",null,"Free text",10],["No. of External units","M","area",null,"Free text",11],["Indoor unit Make and Model","","area",null,"Free text",12],["Indoor unit electrical power (kW)","M","number",null,"Free text",13],["Indoor unit cooling output (kW)","","number",null,"Free text",14],["Indoor unit heating output (kW)","","number",null,"Free text",15],["No. of Internal units","M","area",null,"Free text",16],["System COPref","","area",null,"Free text",17],["Approximate age of system (years)","","select",["0-5","5-7","7-10","10-15","15-20","20+"],"Free text",18]],"inst":[8]},{"n":"Split / VRF System - Controls","f":[["Type of controller","","area",null,"Free text",20],["HAND/AUTO/OFF","","area",null,"Free text",21],["Who operates/manages","","area",null,"Free text",22],["Space set point temperature(s)  (°C)","M","number",null,"Numerical field only",23],["Monday Start Time","","time",null,"24-hour format",24],["Monday End Time","","time",null,"24-hour format",25],["Tuesday Start Time","","time",null,"24-hour format",26],["Tuesday End Time","","time",null,"24-hour format",27],["Wednesday Start Time","","time",null,"24-hour format",28],["Wednesday End Time","","time",null,"24-hour format",29],["Thursday Start Time","","time",null,"24-hour format",30],["Thursday End Time","","time",null,"24-hour format",31],["Friday Start Time","","time",null,"24-hour format",32],["Friday End Time","","time",null,"24-hour format",33],["Saturday Start Time","","time",null,"24-hour format",34],["Saturday End Time","","time",null,"24-hour format",35],["Sunday Start Time","","time",null,"24-hour format",36],["Sunday End Time","","time",null,"24-hour format",37],["Operating Weeks per Annum","","number",null,"Number",38],["Annualised Hours","","auto",null,"Automatic",39]],"inst":[20]},{"n":"Central Chiller","f":[["Location of External units","","area",null,"Free text",41],["External unit Make and Model","","area",null,"Free text",42],["External unit electrical power (kW)","M","number",null,"Free text",43],["No. of External units","M","area",null,"Free text",44],["Internal distribution","","area",null,"Free text e.g. Fan coil units, other",45],["Approximate age of system (years)","","select",["0-5","5-7","7-10","10-15","15-20","20+"],"Free text",46]],"inst":[41]},{"n":"Central Chiller - Controls","f":[["Type of controller","","area",null,"Free text",47],["HAND/AUTO/OFF","","area",null,"Free text",48],["Who operates/manages","","area",null,"Free text",49],["Space set point temperature(s) (°C)","","number",null,"",50],["Monday Start Time","","time",null,"24-hour format",51],["Monday End Time","","time",null,"24-hour format",52],["Tuesday Start Time","","time",null,"24-hour format",53],["Tuesday End Time","","time",null,"24-hour format",54],["Wednesday Start Time","","time",null,"24-hour format",55],["Wednesday End Time","","time",null,"24-hour format",56],["Thursday Start Time","","time",null,"24-hour format",57],["Thursday End Time","","time",null,"24-hour format",58],["Friday Start Time","","time",null,"24-hour format",59],["Friday End Time","","time",null,"24-hour format",60],["Saturday Start Time","","time",null,"24-hour format",61],["Saturday End Time","","time",null,"24-hour format",62],["Sunday Start Time","","time",null,"24-hour format",63],["Sunday End Time","","time",null,"24-hour format",64],["Operating Weeks per Annum","","number",null,"Number",65],["Annualised Hours","","auto",null,"Automatic",66]],"inst":[47]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",68],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",69],["Estimated connected load (kW)","M","number",null,"Surveyor's own estimate for this end use",70],["Estimated annual hours","M","text",null,"Once per system / zone - default assets on the same schedule to 'as above'",71],["Load / diversity factor assumed","O","text",null,"See Methodology tab",72],["Estimation method & key assumptions","M","area",null,"One sentence - external unit kW x hours x load factor, or output / COP. Cross-check vs summer bump in electricity profile",73],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",74]],"inst":[68]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",76],["ESO Potential 2 & rationale","","area",null,"Free text field",77],["ESO Potential 3 & rationale","","area",null,"Free text field",78]],"inst":[76]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",79],["ESO Potential 2 & rationale","","area",null,"Free text field",80],["ESO Potential 3 & rationale","","area",null,"Free text field",81]],"inst":[79]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. condition, access constraints, metering quirks",83]],"inst":[83]}]},"ventilation":{"label":"Ventilation","sys":["AHU","Other"],"blocks":[{"n":"Ventilation","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3],["Approximate age of system (years)","","number",null,"Free text",4],["System Type","M","select",["AHU","Other"],"Dropdown - AHU, Other",5],["Additional information","","area",null,"Free text - if 'Other', populate additional information",6]],"inst":[2]},{"n":"AHU","f":[["Location of equipment","","area",null,"Free text",8],["AHU make and model","M","text",null,"Plant item - the model gives fan & heat-recovery efficiency and names the replacement",9],["Supply AHU Fan Power","M","area",null,"Free text",10],["VSD?","","select",["Yes","No"],"Free text",11],["Batteries","","area",null,"Free text",12],["Pre-heat","","area",null,"Free text",13],["Cooling","","area",null,"Free text",14],["Heating","","area",null,"Free text",15],["Humidification (type/power)","","area",null,"Free text",16],["Extract AHU Fan Power","M","area",null,"Free text (numerical)",17],["Heat recovery","","area",null,"Free text",18]],"inst":[8]},{"n":"Controls","f":[["Type of controller","","area",null,"Free text",20],["HAND/AUTO/OFF","","area",null,"Free text",21],["Who operates/manages","","area",null,"Free text",22],["Airflow set-point (m3/second)","","text",null,"Numerical field only",23],["Space set point temperature(s) (°C)","","number",null,"Numerical field only",24],["Monday Start Time","","time",null,"24-hour format",25],["Monday End Time","","time",null,"24-hour format",26],["Tuesday Start Time","","time",null,"24-hour format",27],["Tuesday End Time","","time",null,"24-hour format",28],["Wednesday Start Time","","time",null,"24-hour format",29],["Wednesday End Time","","time",null,"24-hour format",30],["Thursday Start Time","","time",null,"24-hour format",31],["Thursday End Time","","time",null,"24-hour format",32],["Friday Start Time","","time",null,"24-hour format",33],["Friday End Time","","time",null,"24-hour format",34],["Saturday Start Time","","time",null,"24-hour format",35],["Saturday End Time","","time",null,"24-hour format",36],["Sunday Start Time","","time",null,"24-hour format",37],["Sunday End Time","","time",null,"24-hour format",38],["Operating Weeks per Annum","","number",null,"Number",39],["Annualised Hours","","auto",null,"Automatic",40]],"inst":[20]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",42],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",43],["Estimated connected load (kW)","M","number",null,"Supply + extract fan kW",44],["Estimated annual hours","M","text",null,"Once per system / zone - default assets on the same schedule to 'as above'",45],["Load / diversity factor assumed","O","text",null,"VSDs bring the load factor down - see Methodology tab",46],["Estimation method & key assumptions","M","area",null,"One sentence - (supply + extract) fan kW x hours",47],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",48]],"inst":[42]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",50],["ESO Potential 2 & rationale","","area",null,"Free text field",51],["ESO Potential 3 & rationale","","area",null,"Free text field",52]],"inst":[50]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",53],["ESO Potential 2 & rationale","","area",null,"Free text field",54],["ESO Potential 3 & rationale","","area",null,"Free text field",55]],"inst":[53]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. lighting condition & controls, access constraints, metering quirks",57]],"inst":[57]}]},"lighting":{"label":"Lighting","sys":null,"blocks":[{"n":"Lighting","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3]],"inst":[2]},{"n":"Type of Lighting","f":[["Luminaire","","area",null,"Free text field",5],["Type of lamp","M","select",["T5","T8 Switch Start","T8 High Frequency","T12","CFL","LED","Tungsten","Halogen","High Bay","External"],"Free text field",6],["Lamps per luminaire","M","area",null,"Free text field",7],["Wattage per lamp (W)","M","number",null,"Numerical field",8],["No of luminaires","M","area",null,"Free text field",9],["Approx. proportion operational (%)","","number",null,"Free text field",10],["Photo of layout of surveyed area","","text",null,"To be saved in survey evidence pack",11],["Level of service: Typical Illuminance measurement (lux)","M","number",null,"Lux meter readings",12],["Monday Start Time","","time",null,"24-hour format",13],["Monday End Time","","time",null,"24-hour format",14],["Tuesday Start Time","","time",null,"24-hour format",15],["Tuesday End Time","","time",null,"24-hour format",16],["Wednesday Start Time","","time",null,"24-hour format",17],["Wednesday End Time","","time",null,"24-hour format",18],["Thursday Start Time","","time",null,"24-hour format",19],["Thursday End Time","","time",null,"24-hour format",20],["Friday Start Time","","time",null,"24-hour format",21],["Friday End Time","","time",null,"24-hour format",22],["Saturday Start Time","","time",null,"24-hour format",23],["Saturday End Time","","time",null,"24-hour format",24],["Sunday Start Time","","time",null,"24-hour format",25],["Sunday End Time","","time",null,"24-hour format",26],["Operating Weeks per Annum","","number",null,"Number",27],["Annualised Hours","M","auto",null,"Automatic",28],["Type of controller","M","select",["Manual switching","PIR control","Daylight control","Other"],"Dropdown - Manual switching, PIR control, Daylight control, Other",30],["Additional information","","area",null,"Free text - if 'Other', populate additional information",31]],"rep":true,"inst":[5,32,60,87]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",115],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",116],["Estimated connected load (kW)","M","number",null,"Representative fitting W x count per zone, or W/m2 x floor area for big uniform spaces",117],["Estimated annual hours","M","text",null,"Once per zone - default fittings on the same schedule to 'as above'",118],["Load / diversity factor assumed","O","text",null,"x % operational - see Methodology tab",119],["Estimation method & key assumptions","M","area",null,"One sentence - which Methodology tab method was used and why",120],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",121]],"inst":[115]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",123],["ESO Potential 2 & rationale","","area",null,"Free text field",124],["ESO Potential 3 & rationale","","area",null,"Free text field",125]],"inst":[123]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",126],["ESO Potential 2 & rationale","","area",null,"Free text field",127],["ESO Potential 3 & rationale","","area",null,"Free text field",128]],"inst":[126]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. lighting condition & controls, access constraints, metering quirks",130]],"inst":[130]}]},"process":{"label":"Process","sys":["Compressed Air","Other"],"blocks":[{"n":"Processes","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3],["System Type","M","select",["Compressed Air","Other"],"Dropdown - Compressed air, Other",4],["System Type - Additional Text","","area",null,"Free text - if 'Other', populate additional information",5]],"inst":[2]},{"n":"Compressed Air","f":[["Location of generation equipment","","area",null,"Free text field",7],["Type of compressor","","area",null,"Free text field",8],["Make & Model","","area",null,"Free text field",9],["No. of compressors","M","area",null,"Free text field",10],["Power (kW)","M","number",null,"Free text field",11],["Input Temperature (°C)","O","number",null,"Free text field",12],["Output Temperature (°C)","O","number",null,"Free text field",13],["Air Flow Rate (m/s)","O","area",null,"Free text field",14],["Air Production & Quality","O","area",null,"Free text field",15],["Operation","","area",null,"Free text field",16],["Heat recovery?","","select",["Yes","No"],"Dropdown - Yes / No",17],["If so, what type?","","select",["Yes","No"],"Free text field",18],["Any known issues or leaks?","","select",["Yes","No"],"Free text field",19]],"inst":[7]},{"n":"Compressed Air - Controls","f":[["Type of controller","","text",null,"",21],["Who operates/manages","","text",null,"",22],["Compressed air pressure set-point (bar)","M","number",null,"",23],["Monday Start Time","","time",null,"24-hour format",24],["Monday End Time","","time",null,"24-hour format",25],["Tuesday Start Time","","time",null,"24-hour format",26],["Tuesday End Time","","time",null,"24-hour format",27],["Wednesday Start Time","","time",null,"24-hour format",28],["Wednesday End Time","","time",null,"24-hour format",29],["Thursday Start Time","","time",null,"24-hour format",30],["Thursday End Time","","time",null,"24-hour format",31],["Friday Start Time","","time",null,"24-hour format",32],["Friday End Time","","time",null,"24-hour format",33],["Saturday Start Time","","time",null,"24-hour format",34],["Saturday End Time","","time",null,"24-hour format",35],["Sunday Start Time","","time",null,"24-hour format",36],["Sunday End Time","","time",null,"24-hour format",37],["Operating Weeks per Annum","","number",null,"Number",38],["Annualised Hours","","auto",null,"Automatic",39]],"inst":[21]},{"n":"Compressed Air - On-load / Off-load","rep":true,"init":1,"f":[["On-load / Off-load times (if available)","","area",null,"Free text field",77],["On-load / Off-load percentage (%) (if available)","","number",null,"Free text field",78]],"inst":[77]},{"n":"End-Use","f":[["End-use","","text",null,"",41],["Type of equipment","","area",null,"Free text field",42],["No. of equipment","","area",null,"Free text field",43],["Make & Model","","area",null,"Free text field",44],["Hours of use (weekly)","","area",null,"Free text field",45]],"inst":[41]},{"n":"Other","f":[["Nature of operation","","area",null,"Free text field",47],["Type of machine","","area",null,"Free text field",48],["Make & Model","","area",null,"Free text field",49],["No. of machines","","area",null,"Free text field",50],["Installed thermal power (kW)","","number",null,"Free text field",51],["Variable Speed Drive?","","select",["Yes","No"],"Dropdown - Yes / No",52],["Production capacities & output rates","","area",null,"Free text field",53],["Processing method","","area",null,"Free text field",54],["Products processed","","area",null,"Free text field",55]],"inst":[47]},{"n":"Other - Controls","f":[["Type of controller","","text",null,"",57],["Who operates/manages","","text",null,"",58],["HAND/AUTO/OFF","","text",null,"",59],["Monday Start Time","","time",null,"24-hour format",60],["Monday End Time","","time",null,"24-hour format",61],["Tuesday Start Time","","time",null,"24-hour format",62],["Tuesday End Time","","time",null,"24-hour format",63],["Wednesday Start Time","","time",null,"24-hour format",64],["Wednesday End Time","","time",null,"24-hour format",65],["Thursday Start Time","","time",null,"24-hour format",66],["Thursday End Time","","time",null,"24-hour format",67],["Friday Start Time","","time",null,"24-hour format",68],["Friday End Time","","time",null,"24-hour format",69],["Saturday Start Time","","time",null,"24-hour format",70],["Saturday End Time","","time",null,"24-hour format",71],["Sunday Start Time","","time",null,"24-hour format",72],["Sunday End Time","","time",null,"24-hour format",73],["Operating Weeks per Annum","","number",null,"Number",74],["Annualised Hours","","auto",null,"Automatic",75]],"inst":[57]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",80],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Sub-metering first - pin big loads to real readings, not estimates",81],["Estimated connected load (kW)","M","number",null,"Big loads by kW - read base load vs production hours off the HH profile at the desk",82],["Estimated annual hours","M","text",null,"Once per system - default assets on the same schedule to 'as above'",83],["Load / diversity factor assumed","O","text",null,"Compressed air: kW x hours x load factor with a leak allowance - see Methodology tab",84],["Estimation method & key assumptions","M","area",null,"One sentence - which Methodology tab method was used and why",85],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",86]],"inst":[80]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",88],["ESO Potential 2 & rationale","","area",null,"Free text field",89],["ESO Potential 3 & rationale","","area",null,"Free text field",90]],"inst":[88]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",91],["ESO Potential 2 & rationale","","area",null,"Free text field",92],["ESO Potential 3 & rationale","","area",null,"Free text field",93]],"inst":[91]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. lighting condition & controls, access constraints, metering quirks",95]],"inst":[95]}]},"catering":{"label":"Catering","sys":null,"blocks":[{"n":"Catering","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3]],"inst":[2]},{"n":"Catering - Kitchen","f":[["Monday Start Time","","time",null,"24-hour format",4],["Monday End Time","","time",null,"24-hour format",5],["Tuesday Start Time","","time",null,"24-hour format",6],["Tuesday End Time","","time",null,"24-hour format",7],["Wednesday Start Time","","time",null,"24-hour format",8],["Wednesday End Time","","time",null,"24-hour format",9],["Thursday Start Time","","time",null,"24-hour format",10],["Thursday End Time","","time",null,"24-hour format",11],["Friday Start Time","","time",null,"24-hour format",12],["Friday End Time","","time",null,"24-hour format",13],["Saturday Start Time","","time",null,"24-hour format",14],["Saturday End Time","","time",null,"24-hour format",15],["Sunday Start Time","","time",null,"24-hour format",16],["Sunday End Time","","time",null,"24-hour format",17],["Operating Weeks per Annum","","number",null,"Number",18],["Annualised Hours","","auto",null,"Automatic",19]],"inst":[4]},{"n":"Catering - Gas","f":[["Monday Start Time","","time",null,"24-hour format",20],["Monday End Time","","time",null,"24-hour format",21],["Tuesday Start Time","","time",null,"24-hour format",22],["Tuesday End Time","","time",null,"24-hour format",23],["Wednesday Start Time","","time",null,"24-hour format",24],["Wednesday End Time","","time",null,"24-hour format",25],["Thursday Start Time","","time",null,"24-hour format",26],["Thursday End Time","","time",null,"24-hour format",27],["Friday Start Time","","time",null,"24-hour format",28],["Friday End Time","","time",null,"24-hour format",29],["Saturday Start Time","","time",null,"24-hour format",30],["Saturday End Time","","time",null,"24-hour format",31],["Sunday Start Time","","time",null,"24-hour format",32],["Sunday End Time","","time",null,"24-hour format",33],["Operating Weeks per Annum","","number",null,"Number",34],["Annualised Hours","","auto",null,"Automatic",35]],"inst":[20]},{"n":"Catering - Ventilation","f":[["Monday Start Time","","time",null,"24-hour format",36],["Monday End Time","","time",null,"24-hour format",37],["Tuesday Start Time","","time",null,"24-hour format",38],["Tuesday End Time","","time",null,"24-hour format",39],["Wednesday Start Time","","time",null,"24-hour format",40],["Wednesday End Time","","time",null,"24-hour format",41],["Thursday Start Time","","time",null,"24-hour format",42],["Thursday End Time","","time",null,"24-hour format",43],["Friday Start Time","","time",null,"24-hour format",44],["Friday End Time","","time",null,"24-hour format",45],["Saturday Start Time","","time",null,"24-hour format",46],["Saturday End Time","","time",null,"24-hour format",47],["Sunday Start Time","","time",null,"24-hour format",48],["Sunday End Time","","time",null,"24-hour format",49],["Operating Weeks per Annum","","number",null,"Number",50],["Annualised Hours","","auto",null,"Automatic",51]],"inst":[36]},{"n":"Catering","f":[["Does extract have variable speed?","","select",["Yes","No"],"Dropdown - Yes / No",53],["Heat recovery from extract possible?","","select",["Yes","No"],"Dropdown - Yes / No",54]],"inst":[53]},{"n":"Equipment","f":[["Type","M","area",null,"Free text",56],["Make and model","","area",null,"Free text",57],["Number of","M","text",null,"Numerical field",58],["Power rating (kW)","M","number",null,"Numerical field",59],["Level of service (%)","M","number",null,"Numerical field",60]],"rep":true,"inst":[56,62,68,74,80,86,92,98,104,110]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",116],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",117],["Estimated connected load (kW)","M","number",null,"Surveyor's own estimate for this end use",118],["Estimated annual hours","M","text",null,"Once per zone - default kit on the same schedule to 'as above'",119],["Load / diversity factor assumed","O","text",null,"See Methodology tab",120],["Estimation method & key assumptions","M","area",null,"One sentence - e.g. Nameplate kW x diversity factor (~0.3-0.5) x hours",121],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",122]],"inst":[116]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",124],["ESO Potential 2 & rationale","","area",null,"Free text field",125],["ESO Potential 3 & rationale","","area",null,"Free text field",126]],"inst":[124]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",127],["ESO Potential 2 & rationale","","area",null,"Free text field",128],["ESO Potential 3 & rationale","","area",null,"Free text field",129]],"inst":[127]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. lighting condition & controls, access constraints, metering quirks",131]],"inst":[131]}]},"leisure":{"label":"Leisure","sys":["Swimming Pool","Gym","Other"],"blocks":[{"n":"Leisure","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3],["System Type","M","select",["Swimming Pool","Gym","Other"],"Dropdown - Swimming Pool, Gym, Other",4],["Additional information","","area",null,"Free text - if 'Other', populate additional information",5]],"inst":[2]},{"n":"Swimming Pool","f":[["Pool size (m3)","","number",null,"Numerical field",6],["Water volume (litres)","","number",null,"Free text",7],["Monday Start Time","","time",null,"24-hour format",8],["Monday End Time","","time",null,"24-hour format",9],["Tuesday Start Time","","time",null,"24-hour format",10],["Tuesday End Time","","time",null,"24-hour format",11],["Wednesday Start Time","","time",null,"24-hour format",12],["Wednesday End Time","","time",null,"24-hour format",13],["Thursday Start Time","","time",null,"24-hour format",14],["Thursday End Time","","time",null,"24-hour format",15],["Friday Start Time","","time",null,"24-hour format",16],["Friday End Time","","time",null,"24-hour format",17],["Saturday Start Time","","time",null,"24-hour format",18],["Saturday End Time","","time",null,"24-hour format",19],["Sunday Start Time","","time",null,"24-hour format",20],["Sunday End Time","","time",null,"24-hour format",21],["Operating Weeks per Annum","","number",null,"Number",22],["Annualised Hours","","auto",null,"Automatic",23],["Swimming pool cover","","select",["Yes","No"],"Dropdown - Yes / No",24],["Backwash cycle defined?","","select",["Yes","No"],"Dropdown - Yes / No",25],["Backwash cycle if yes","","select",["Weekdays (M-F)","Weekends (Sat-Sun)","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],"Dropdown - add lines as required for use",26],["Pool set-point temperature (°C)","","number",null,"Numerical field only",27],["Back-stop temperature?","","select",["Yes","No"],"Dropdown - Yes / No",28],["Back-stop temperature if yes","","area",null,"Free text - if 'Yes', temperature to be populated.",29],["Back-stop temperature time schedule if yes","","select",["Weekdays (M-F)","Weekends (Sat-Sun)","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],"Dropdown - add lines as required for use",30]],"inst":[6]},{"n":"Gym","f":[["Monday Start Time","","time",null,"24-hour format",32],["Monday End Time","","time",null,"24-hour format",33],["Tuesday Start Time","","time",null,"24-hour format",34],["Tuesday End Time","","time",null,"24-hour format",35],["Wednesday Start Time","","time",null,"24-hour format",36],["Wednesday End Time","","time",null,"24-hour format",37],["Thursday Start Time","","time",null,"24-hour format",38],["Thursday End Time","","time",null,"24-hour format",39],["Friday Start Time","","time",null,"24-hour format",40],["Friday End Time","","time",null,"24-hour format",41],["Saturday Start Time","","time",null,"24-hour format",42],["Saturday End Time","","time",null,"24-hour format",43],["Sunday Start Time","","time",null,"24-hour format",44],["Sunday End Time","","time",null,"24-hour format",45],["Operating Weeks per Annum","","number",null,"Number",46],["Annualised Hours","","auto",null,"Automatic",47],["Equipment","M","text",null,"If more than one equipment type - all fields to be copied and pasted below",48],["Type","M","area",null,"Free text",49],["Make and model","","area",null,"Free text",50],["Number of","M","text",null,"Numerical field",51],["Power rating (kW)","M","number",null,"Numerical field",52],["Level of service (%)","M","number",null,"Numerical field",53]],"inst":[32]},{"n":"Spa facilities","f":[["Equipment","M","area",null,"Free text e.g. Steam room / Sauna",55],["Additional information","","area",null,"Free text",56],["Monday Start Time","","time",null,"24-hour format",57],["Monday End Time","","time",null,"24-hour format",58],["Tuesday Start Time","","time",null,"24-hour format",59],["Tuesday End Time","","time",null,"24-hour format",60],["Wednesday Start Time","","time",null,"24-hour format",61],["Wednesday End Time","","time",null,"24-hour format",62],["Thursday Start Time","","time",null,"24-hour format",63],["Thursday End Time","","time",null,"24-hour format",64],["Friday Start Time","","time",null,"24-hour format",65],["Friday End Time","","time",null,"24-hour format",66],["Saturday Start Time","","time",null,"24-hour format",67],["Saturday End Time","","time",null,"24-hour format",68],["Sunday Start Time","","time",null,"24-hour format",69],["Sunday End Time","","time",null,"24-hour format",70],["Operating Weeks per Annum","","number",null,"Number",71],["Annualised Hours","","auto",null,"Automatic",72],["Set-point temperature (°C)","","number",null,"Free text",73],["Back-stop temperature?","","select",["Yes","No"],"Dropdown - Yes / No",74],["Back-stop temperature if yes","","area",null,"Free text - if 'Yes'. Temperature to be populated.",75],["Back-stop temperature time schedule if yes","","select",["Weekdays (M-F)","Weekends (Sat-Sun)","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],"Dropdown - add lines as required for use",76]],"inst":[55]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",78],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",79],["Estimated connected load (kW)","M","number",null,"Surveyor's own estimate for this end use",80],["Estimated annual hours","M","text",null,"Once per system / zone - default kit on the same schedule to 'as above'",81],["Load / diversity factor assumed","O","text",null,"See Methodology tab",82],["Estimation method & key assumptions","M","area",null,"One sentence - which Methodology tab method was used and why",83],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",84]],"inst":[78]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",86],["ESO Potential 2 & rationale","","area",null,"Free text field",87],["ESO Potential 3 & rationale","","area",null,"Free text field",88]],"inst":[86]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",89],["ESO Potential 2 & rationale","","area",null,"Free text field",90],["ESO Potential 3 & rationale","","area",null,"Free text field",91]],"inst":[89]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. lighting condition & controls, access constraints, metering quirks",93]],"inst":[93]}]},"smallpower":{"label":"Small Power","sys":null,"blocks":[{"n":"Small Power","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3]],"inst":[2]},{"n":"Equipment","f":[["Type","M","area",null,"Free text",5],["Make and model","","area",null,"Free text",6],["Number of","M","text",null,"Numerical field",7],["Power rating (kW)","M","number",null,"Numerical field",8],["Level of service (%)","M","number",null,"Numerical field",9]],"rep":true,"inst":[5,11,17,23,29,35,41,47,53,59]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",65],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",66],["Estimated connected load (kW)","M","number",null,"Surveyor's own estimate for this end use - whole-zone estimate allowed",67],["Estimated annual hours","M","text",null,"Once per zone - default kit on the same schedule to 'as above'",68],["Load / diversity factor assumed","O","text",null,"See Methodology tab",69],["Estimation method & key assumptions","M","area",null,"One sentence - e.g. W/m2 by space type x area x hours, or headcount x per-desk; reconcile against whatever's left on the meter",70],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",71]],"inst":[65]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",73],["ESO Potential 2 & rationale","","area",null,"Free text field",74],["ESO Potential 3 & rationale","","area",null,"Free text field",75]],"inst":[73]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",76],["ESO Potential 2 & rationale","","area",null,"Free text field",77],["ESO Potential 3 & rationale","","area",null,"Free text field",78]],"inst":[76]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. lighting condition & controls, access constraints, metering quirks",80]],"inst":[80]}]},"other":{"label":"Other","sys":null,"blocks":[{"n":"Other","f":[["Zone","M","zone",null,"Dropdowns defined in 'General'",2],["Additional information","","area",null,"Further notes on zone",3]],"inst":[2]},{"n":"Equipment","f":[["Type","M","area",null,"Free text",5],["Make and model","","area",null,"Free text",6],["Number of","M","text",null,"Numerical field",7],["Power rating (kW)","M","number",null,"Numerical field",8],["Level of service (%)","M","number",null,"Numerical field",9]],"rep":true,"inst":[5,11,17,23,29,35,41,47,53,59]},{"n":"Surveyor Estimate","f":[["Tagged meter / supply (MPAN / MPRN / sub-meter ID)","M","meter",null,"Which supply serves this end use - must match the Meter Register on General",65],["Sub-meter present? What does it cover?","M","subm",null,"Dropdown Yes / No + free text. Where sub-metered, the desk reading beats the estimate",66],["Estimated connected load (kW)","M","number",null,"Surveyor's own estimate for this end use",67],["Estimated annual hours","M","text",null,"Once per zone - default kit on the same schedule to 'as above'",68],["Load / diversity factor assumed","O","text",null,"See Methodology tab",69],["Estimation method & key assumptions","M","area",null,"One sentence - e.g. kW x hours x load factor",70],["Confidence (High / Medium / Low)","M","select",["High","Medium","Low"],"Dropdown",71]],"inst":[65]},{"n":"Initial ESOs Potential Identification","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",73],["ESO Potential 2 & rationale","","area",null,"Free text field",74],["ESO Potential 3 & rationale","","area",null,"Free text field",75]],"inst":[73]},{"n":"Initial ESOs Potential Implementation Information","f":[["ESO Potential 1 & rationale","","area",null,"Free text field",76],["ESO Potential 2 & rationale","","area",null,"Free text field",77],["ESO Potential 3 & rationale","","area",null,"Free text field",78]],"inst":[76]},{"n":"Surveyor Comments","f":[["Comments / observations (free text)","O","area",null,"Free text - anything not captured above e.g. lighting condition & controls, access constraints, metering quirks",80]],"inst":[80]}]},"expected":{"Office":"Heating, DHW, Cooling, Ventilation, Small Power, Lighting","Manufacturing":"Heating, DHW, Cooling, Ventilation, Small Power, Lighting, Process, Catering","Retail":"Heating, DHW, Cooling, Small Power, Lighting","Leisure":"Heating, DHW, Cooling, Ventilation, Small Power, Lighting, Leisure, Catering"},"zoneRows":[26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45]};
+const SV=['heating','dhw','cooling','ventilation','lighting','process','catering','leisure','smallpower','other'];
+const ALL=['general',...SV], DAYS=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const ST={r:'Not started',a:'In progress',g:'Complete',n:'Not applicable'};
+let D={};try{D=JSON.parse(localStorage.getItem('inspired_v2'))||{}}catch(e){}
+let CN={};try{CN=JSON.parse(localStorage.getItem('legency_cust_notes'))||{}}catch(e){}
+let V={s:'dash',id:null,svc:null,e:null};
+(function(){try{const t=localStorage.getItem('legency_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}})();
+function themeLabel(){const t=localStorage.getItem('legency_theme')||'system';return t==='system'?'\u2699\ufe0f System':t==='light'?'\u2600\ufe0f Light':'\ud83c\udf19 Dark'}
+function applyTheme(t){if(t==='system'){document.documentElement.removeAttribute('data-theme');try{localStorage.removeItem('legency_theme')}catch(e){}}else{document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('legency_theme',t)}catch(e){}}const b=document.getElementById('themeBtn');if(b)b.textContent=themeLabel()}
+{const b=document.getElementById('themeBtn');if(b){b.textContent=themeLabel();b.onclick=()=>{const cur=localStorage.getItem('legency_theme')||'system';applyTheme(cur==='system'?'light':cur==='light'?'dark':'system')}}}
+const $=id=>document.getElementById(id), uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const save=(sv)=>{try{localStorage.setItem('inspired_v2',JSON.stringify(D))}catch(e){toast('Storage full — export your data')}queuePush(sv)};
+function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',3500)}
+const kk=(b,i,f)=>b+'.'+i+'.'+f;
+const hasM=b=>b.f.some(f=>f[1]==='M'&&f[2]!=='auto');
+const getN=(sh,o,bi)=>{const b=S[sh].blocks[bi];if(b.default0)return o.n[bi]??0;return o.n[bi]??(b.rep?((hasM(b)||b.init)?1:0):1)};
+const findF=(sh,l)=>{const B=S[sh].blocks;for(let b=0;b<B.length;b++){const f=B[b].f.findIndex(x=>x[0]===l);if(f>=0)return[b,f]}return null};
+const gv=(sh,o,l)=>{const p=findF(sh,l);return p?o.v[kk(p[0],0,p[1])]||'':''};
+const gvp=(sh,o,p)=>{const B=S[sh].blocks;for(let b=0;b<B.length;b++){const f=B[b].f.findIndex(x=>x[0].startsWith(p));if(f>=0)return o.v[kk(b,0,f)]||''}return''};
+function ids(sv){const mp=k=>String(gv('general',sv.gen,k)||'').split('\n').map(x=>x.trim()).filter(x=>x&&!/^n\/?a$/i.test(x)),mpan=mp('MPAN(s)'),mprn=mp('MPRN(s)'),mb=S.general.blocks.findIndex(b=>b.n==='Meter Register'),reg=[];for(let m=0;m<getN('general',sv.gen,mb);m++){const x=sv.gen.v[kk(mb,m,0)];if(x)reg.push(x)}return{mpan,mprn,reg,all:[...new Set([...mpan,...mprn,...reg])]}}
+const COND_BLOCK_MAP={heating:{'wet / radiant system':['Wet','Radiant','Gas Convector'],'electric system':['Electric'],'split/vrf system':['Other']}};
+function blockBaseLabel(sh,bi,o){const b=S[sh].blocks[bi];
+ if(sh==='heating'&&b.n.toLowerCase().includes('wet / radiant system')){const sel=gv(sh,o,'System Type');return((sel==='Wet'||sel==='Radiant'||sel==='Gas Convector')?sel:'Wet / Radiant')+' System'}
+ return b.n}
+function blockTitle(sh,bi,o,i){const b=S[sh].blocks[bi];return blockBaseLabel(sh,bi,o)+(b.rep?' '+(i+1):'')}
+function vis(sh,bi,o){const n=S[sh].blocks[bi].n.toLowerCase();const sel=gv(sh,o,'System Type');const custom=COND_BLOCK_MAP[sh];
+ if(custom){for(const key in custom){if(n.includes(key))return custom[key].includes(sel)}return true}
+ const sys=S[sh].sys;if(!sys)return true;const m=sys.filter(x=>n.includes(x.toLowerCase()));if(!m.length)return true;return m.includes(sel)}
+function miss(sh,o){const out=[];S[sh].blocks.forEach((b,bi)=>{if(!vis(sh,bi,o))return;const n=getN(sh,o,bi);for(let i=0;i<n;i++){const used=b.f.some((f,fi)=>o.v[kk(bi,i,fi)]);const need=!b.rep||i==0||used;b.f.forEach((f,fi)=>{if(f[1]!=='M'||f[2]==='auto'||!need)return;
+ if(f[0].startsWith('[if dedicated]')){const d=b.f.findIndex(x=>x[0].startsWith('Dedicated boiler'));if(!String(o.v[kk(bi,i,d)]||'').startsWith('Dedicated'))return}
+ if(!o.v[kk(bi,i,fi)])out.push(f[0])})}});return out}
+function status(sv,sh){if(sh==='general'){const m=miss('general',sv.gen);return m.length===0?'g':Object.values(sv.gen.v).some(x=>x)?'a':'r'}
+ if(sv.na[sh])return'n';const l=sv.entries[sh]||[];if(!l.length)return'r';return l.every(e=>!miss(sh,e).length)?'g':'a'}
+function go(s,x){V=Object.assign({},V,{s},x||{});paint();scrollTo(0,0)}
+// ---------- media (IndexedDB) ----------
+const idb=new Promise((res,rej)=>{try{const r=indexedDB.open('esos_media',1);r.onupgradeneeded=()=>r.result.createObjectStore('m',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}catch(e){rej(e)}});idb.catch(()=>{});
+const tx=(mode,fn)=>idb.then(db=>new Promise((res,rej)=>{const t=db.transaction('m',mode),q=fn(t.objectStore('m'));t.oncomplete=()=>res(q&&q.result);t.onerror=()=>rej(t.error)}));
+const mAll=()=>tx('readonly',s=>s.getAll()).then(a=>a||[]).catch(()=>[]);
+async function shrink(file){const url=URL.createObjectURL(file);const im=await new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=url});const sc=Math.min(1,1600/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=im.width*sc;c.height=im.height*sc;c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(url);return new Promise(r=>c.toBlob(r,'image/jpeg',.82))}
+async function addMediaId(id,owner,kind,blob,name){await tx('readwrite',s=>s.put({id,owner,kind,blob,name,ts:Date.now()}))}
+function mediaBox(owner,cid){return `<div class="dz" data-dz="${owner}"><div class="sec">Photos &amp; voice notes <span style="font-weight:400;font-size:.78rem;color:var(--soft)">(evidence pack)</span></div>
+<div class="media"><button class="gh" data-cam="${owner}">📷 Take photo</button><button class="gh" data-pick="${owner}">🖼 Add from folder</button><button class="gh" data-rec="${owner}">🎙 Record voice note</button></div><div class="dzhint">…or drag photos here from an open folder</div><div id="ml_${cid}" data-owner="${owner}"></div></div>`}
+async function loadMedia(root){for(const el of root.querySelectorAll('[data-owner]')){const owner=el.dataset.owner,survId=owner.split('|')[0];
+ const local=(await mAll()).filter(m=>m.owner===owner);let remote=[];
+ if(fbReady&&surveysCol){try{const snap=await surveysCol.doc(survId).collection('media').where('owner','==',owner).get();remote=snap.docs.map(d=>({id:d.id,remote:true,...d.data()}))}catch(e){}}
+ const localIds=new Set(local.map(m=>m.id)),items=[...local,...remote.filter(r=>!localIds.has(r.id))],src=m=>m.remote?m.url:URL.createObjectURL(m.blob);
+ const delAttr=m=>m.remote?`data-dmr="${survId}|${m.id}"`:`data-dm="${m.id}"`;
+ el.innerHTML=`<div class="thumbs">${items.filter(m=>m.kind==='photo').map(m=>`<div class="th"><img src="${src(m)}" data-view="${src(m)}"><button ${delAttr(m)}>×</button></div>`).join('')}</div>`+items.filter(m=>m.kind==='audio').map(m=>`<div class="aud"><audio controls src="${src(m)}"></audio><button class="dng" ${delAttr(m)}>Delete</button></div>`).join('')||'';
+ if(!items.length)el.innerHTML='<div class="note">No photos or voice notes yet.</div>'}}
+function openLightbox(src){const d=document.createElement('div');d.id='lbx';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:40;display:flex;align-items:center;justify-content:center';d.innerHTML=`<img src="${src}" style="max-width:94vw;max-height:94vh;object-fit:contain"><button style="position:fixed;top:1rem;right:1rem;background:rgba(255,255,255,.15);color:#fff;width:2.4rem;height:2.4rem;border-radius:50%;font-size:1.3rem">&times;</button>`;d.onclick=()=>d.remove();document.body.appendChild(d)}
+
+const firebaseConfig={apiKey:"AIzaSyAamu4Ljvf4xKEHbKpGGNJnphUImNjdUiY",authDomain:"esos-site-data-collection.firebaseapp.com",projectId:"esos-site-data-collection",storageBucket:"esos-site-data-collection.firebasestorage.app",messagingSenderId:"99215176778",appId:"1:99215176778:web:7bf7668890f290a618e2b3"};
+let fbReady=false, uidCur=null, surveysCol=null, customersCol=null, auth=null, dbFs=null, storageFb=null;
+try{
+  firebase.initializeApp(firebaseConfig);
+  auth=firebase.auth(); dbFs=firebase.firestore(); storageFb=firebase.storage();
+  dbFs.enablePersistence({synchronizeTabs:true}).catch(e=>console.warn('persistence',e.code));
+  fbReady=true;
+}catch(e){console.warn('Firebase init failed, working offline-only on this device',e)}
+let uploadedIds=new Set();try{uploadedIds=new Set(JSON.parse(localStorage.getItem('legency_uploaded_ids')||'[]'))}catch(e){}
+function markUploaded(id){uploadedIds.add(id);try{localStorage.setItem('legency_uploaded_ids',JSON.stringify([...uploadedIds]))}catch(e){}}
+async function uploadMedia(id,owner,kind,blob,name){
+  if(!fbReady||!uidCur||uploadedIds.has(id))return;
+  try{
+    const path='users/'+uidCur+'/'+owner.replace(/[^a-zA-Z0-9_|.-]/g,'_')+'/'+id+(kind==='photo'?'.jpg':'.webm');
+    const ref=storageFb.ref(path); await ref.put(blob); const url=await ref.getDownloadURL();
+    const survId=owner.split('|')[0];
+    if(surveysCol)await surveysCol.doc(survId).collection('media').doc(id).set({owner,kind,name:name||'',ts:Date.now(),url,path});
+    markUploaded(id);
+  }catch(e){/* offline or blocked — retryUploads() will try again later */}
+}
+async function retryUploads(){if(!fbReady||!uidCur||!navigator.onLine)return;(await mAll()).forEach(m=>{if(!uploadedIds.has(m.id))uploadMedia(m.id,m.owner,m.kind,m.blob,m.name)})}
+window.addEventListener('online',retryUploads);
+const pushTimers={};
+function queuePush(sv){if(!fbReady||!surveysCol||!sv)return;clearTimeout(pushTimers[sv.id]);pushTimers[sv.id]=setTimeout(()=>{sv._updatedAt=Date.now();surveysCol.doc(sv.id).set(sv).catch(e=>toast('Sync paused — will retry ('+e.code+')'))},1200)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden||!fbReady||!surveysCol)return;Object.keys(pushTimers).forEach(id=>{clearTimeout(pushTimers[id]);if(D[id]){D[id]._updatedAt=Date.now();surveysCol.doc(id).set(D[id]).catch(()=>{})}})});
+function showAuthScreen(msg,mode){
+  mode=mode||'signin';
+  $('bar').style.display='none';$('crumb').textContent='';
+  $('main').innerHTML=`<div class="card" style="max-width:360px;margin:3rem auto;text-align:center">
+    <h3 style="margin-bottom:.6rem">${mode==='signup'?'Create your account':'Sign in'}</h3>
+    <p class="note" style="margin-bottom:1rem">${esc(msg||'')}</p>
+    <button class="gh" id="authGoogle" style="width:100%;margin-bottom:.9rem">Sign in with Google</button>
+    <div class="note" style="margin:0 0 .9rem">— or use email and password —</div>
+    <input id="authEmail" type="email" placeholder="you@example.com" style="margin-bottom:.6rem" value="${esc(localStorage.getItem('legency_last_email')||'')}">
+    <input id="authPass" type="password" placeholder="Password (6+ characters)" style="margin-bottom:.6rem">
+    <button class="pri" id="authGo" style="width:100%">${mode==='signup'?'Create account':'Sign in'}</button>
+    <div class="note" id="authStatus" style="margin-top:.7rem"></div>
+    <div class="note" style="margin-top:1rem"><a id="authToggle" style="color:var(--navy);cursor:pointer">${mode==='signup'?'Already have an account? Sign in':'New here? Create an account'}</a></div>
+  </div>`;
+  $('authToggle').onclick=()=>showAuthScreen(null,mode==='signup'?'signin':'signup');
+  $('authGoogle').onclick=()=>{$('authStatus').textContent='Redirecting to Google…';auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider())};
+  $('authGo').onclick=()=>{
+    const email=$('authEmail').value.trim(),pass=$('authPass').value;
+    if(!email||!pass){$('authStatus').textContent='Enter both an email and a password.';return}
+    localStorage.setItem('legency_last_email',email);
+    const st=$('authStatus');st.textContent='Working…';
+    const fn=mode==='signup'?auth.createUserWithEmailAndPassword(email,pass):auth.signInWithEmailAndPassword(email,pass);
+    fn.catch(e=>{
+      if(mode==='signin'&&e.code==='auth/user-not-found'){showAuthScreen('No account with that email yet — create one below.','signup');return}
+      st.textContent=e.message;
+    });
+  };
+}
+const pushTimersCust={};
+function queuePushCust(key){if(!fbReady||!customersCol)return;clearTimeout(pushTimersCust[key]);pushTimersCust[key]=setTimeout(()=>{CN[key]._updatedAt=Date.now();customersCol.doc(key).set(CN[key]).catch(e=>toast('Sync paused — will retry ('+e.code+')'))},1200)}
+function saveCust(key){try{localStorage.setItem('legency_cust_notes',JSON.stringify(CN))}catch(e){toast('Storage full — export your data')}queuePushCust(key)}
+function startCloudSync(){
+  surveysCol=dbFs.collection('users').doc(uidCur).collection('surveys');
+  customersCol=dbFs.collection('users').doc(uidCur).collection('customerNotes');
+  customersCol.get().then(snap=>{
+    const cloudKeys=new Set(snap.docs.map(d=>d.id));
+    Object.keys(CN).forEach(key=>{if(!cloudKeys.has(key)){CN[key]._updatedAt=CN[key]._updatedAt||Date.now();customersCol.doc(key).set(CN[key]).catch(()=>{})}});
+  }).catch(()=>{});
+  customersCol.onSnapshot({includeMetadataChanges:true},snap=>{
+    let changed=false;
+    snap.docChanges().forEach(ch=>{const key=ch.doc.id;
+      if(ch.type==='removed'){if(CN[key]){delete CN[key];changed=true}return}
+      const data=ch.doc.data(),local=CN[key];
+      if(!local||(data._updatedAt||0)>(local._updatedAt||0)){CN[key]=data;changed=true}
+    });
+    if(!changed)return;
+    try{localStorage.setItem('legency_cust_notes',JSON.stringify(CN))}catch(e){}
+    if(V.s==='cust')return;
+    paint();
+  },err=>toast('Sync error: '+err.message));
+  surveysCol.get().then(snap=>{
+    const cloudIds=new Set(snap.docs.map(d=>d.id));
+    Object.values(D).forEach(sv=>{if(!cloudIds.has(sv.id)){sv._updatedAt=sv._updatedAt||Date.now();surveysCol.doc(sv.id).set(sv).catch(()=>{})}});
+    retryUploads();
+  }).catch(()=>{});
+  surveysCol.onSnapshot({includeMetadataChanges:true},snap=>{
+    let changed=false;
+    snap.docChanges().forEach(ch=>{const id=ch.doc.id;
+      if(ch.type==='removed'){if(D[id]){delete D[id];changed=true}return}
+      const data=ch.doc.data(),local=D[id];
+      if(!local||(data._updatedAt||0)>(local._updatedAt||0)){D[id]=data;changed=true}
+    });
+    if(!changed)return;
+    try{localStorage.setItem('inspired_v2',JSON.stringify(D))}catch(e){}
+    if(V.s==='gen'||V.s==='ent')return;
+    paint();
+  },err=>toast('Sync error: '+err.message));
+}
+function autoGrow(el){el.style.height='auto';el.style.height=(el.scrollHeight+2)+'px'}
+document.addEventListener('input',e=>{if(e.target.tagName==='TEXTAREA')autoGrow(e.target)});
+new MutationObserver(()=>{document.querySelectorAll('#main textarea').forEach(autoGrow)}).observe(document.getElementById('main'),{childList:true,subtree:true});
+async function dropFiles(files,ow){let n=0,skip=0;for(const f of files){try{if((f.type||'').startsWith('image/')||/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(f.name||'')){const b=await shrink(f),mid=uid();await addMediaId(mid,ow,'photo',b,f.name||'photo.jpg');uploadMedia(mid,ow,'photo',b,f.name||'photo.jpg');n++}else if((f.type||'').startsWith('audio/')){const mid=uid();await addMediaId(mid,ow,'audio',f,f.name||'voice-note');uploadMedia(mid,ow,'audio',f,f.name||'voice-note');n++}else skip++}catch(x){skip++}}loadMedia(document);toast((n?n+' file'+(n>1?'s':'')+' added':'Nothing added')+(skip?' — '+skip+' skipped (not a photo/audio file or unreadable)':''))}
+(()=>{const hasFiles=e=>e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files');let lastDz=null;
+ document.addEventListener('dragover',e=>{if(!hasFiles(e))return;e.preventDefault();const z=e.target.closest&&e.target.closest('[data-dz]');if(z!==lastDz){if(lastDz)lastDz.classList.remove('over');if(z)z.classList.add('over');lastDz=z}if(e.dataTransfer)e.dataTransfer.dropEffect=z?'copy':'none'});
+ document.addEventListener('dragleave',e=>{if(!e.relatedTarget&&lastDz){lastDz.classList.remove('over');lastDz=null}});
+ document.addEventListener('drop',e=>{if(!hasFiles(e))return;e.preventDefault();if(lastDz){lastDz.classList.remove('over');lastDz=null}const z=e.target.closest&&e.target.closest('[data-dz]');if(!z)return;dropFiles(Array.from(e.dataTransfer.files),z.dataset.dz)})})();
+let rec=null;
+document.addEventListener('click',e=>{if(e.target.tagName==='IMG'&&e.target.dataset.view)openLightbox(e.target.dataset.view)});
+document.addEventListener('click',async e=>{const t=e.target.closest('button,summary');if(!t)return;
+ if(t.dataset.cam!==undefined||t.dataset.pick!==undefined){const ow=t.dataset.cam??t.dataset.pick;const i=document.createElement('input');i.type='file';i.accept='image/*';if(t.dataset.cam!==undefined)i.setAttribute('capture','environment');else i.multiple=true;
+  i.onchange=async()=>{for(const f of i.files){try{const mid=uid();await addMediaId(mid,ow,'photo',await shrink(f),f.name||'photo.jpg');uploadMedia(mid,ow,'photo',await shrink(f),f.name||'photo.jpg')}catch(x){toast('Could not save that photo')}}loadMedia(document)};i.click()}
+ if(t.dataset.dm){if(!confirm('Delete this item?'))return;await tx('readwrite',s=>s.delete(t.dataset.dm));loadMedia(document)}
+ if(t.dataset.dmr){if(!confirm('Delete this item? It was synced from another device.'))return;const[survId,mediaId]=t.dataset.dmr.split('|');try{const doc=await surveysCol.doc(survId).collection('media').doc(mediaId).get();const data=doc.data&&doc.data();if(data&&data.path)await storageFb.ref(data.path).delete();await surveysCol.doc(survId).collection('media').doc(mediaId).delete()}catch(x){toast('Could not delete: '+x.message)}loadMedia(document)}
+ if(t.dataset.rec!==undefined){if(rec){rec.stop();return}try{const st=await navigator.mediaDevices.getUserMedia({audio:true});const ch=[];rec=new MediaRecorder(st);rec.ondataavailable=x=>ch.push(x.data);
+  rec.onstop=async()=>{st.getTracks().forEach(x=>x.stop());{const mid=uid(),blob=new Blob(ch,{type:rec.mimeType});await addMediaId(mid,t.dataset.rec,'audio',blob,'voice-note');uploadMedia(mid,t.dataset.rec,'audio',blob,'voice-note')}rec=null;t.textContent='🎙 Record voice note';loadMedia(document)};rec.start();t.textContent='⏹ Stop recording'}catch(x){toast('Microphone not available here — allow access or use your phone’s voice recorder and add it from Files.')}}
+ if(t.classList.contains('mic')){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Dictation isn’t available in this view — use the microphone key on your keyboard.');return}
+  const inp=t.previousElementSibling,r=new SR();r.lang='en-GB';r.interimResults=false;t.classList.add('rec');r.onresult=ev=>{inp.value=(inp.value?inp.value+' ':'')+ev.results[0][0].transcript;inp.dispatchEvent(new Event('input',{bubbles:true}))};r.onerror=ev=>toast('Dictation: '+ev.error);r.onend=()=>t.classList.remove('rec');try{r.start()}catch(x){}}
+});
+// ---------- form renderer ----------
+const HIDE=/^(Dropdown|Text field|Numerical field( only)?|Free text( field)?|Number|24-hour format|Automatic)$/i;
+function fld(sh,bi,i,fi,f,o,sv,req){const key=kk(bi,i,fi),v=o.v[key]??'',t=f[2],lab=f[0];let h='';const na=`data-k="${key}"`;
+ if(t==='auto'){let val='—';if(lab==='Annualised Hours'){const x=annual(sh,bi,i,o);if(x!=null)val=x+' h/yr'}
+  else if(lab==='Total installed power'){const b=S[sh].blocks[bi];const a=+o.v[kk(bi,i,b.f.findIndex(x=>x[0]==='Heater electrical power (kW)'))],c=+o.v[kk(bi,i,b.f.findIndex(x=>x[0]==='Number of heaters'))];if(a&&c)val=(a*c)+' kW'}
+  else if(lab==='Number of Operational Zones')val=sv.zones.length||'—';
+  else if(lab.startsWith('Expected Building Services'))val=S.expected[gv('general',o,'Site Type')]||'Choose a site type above';
+  else if(lab==='Additional Notes')val=gv('general',o,'Site Type')==='Office'?'Record all small power incl. monitors, laptops/PCs, kettle, toaster, microwave, fridge, water cooler, printers.':'—';
+  else return '';
+  return `<div class="fld"><label>${esc(lab.replace(/\s*\(please.*$/,''))} <span style="font-weight:400">(automatic)</span></label><div class="auto" data-auto="${bi}.${i}.${fi}">${esc(val)}</div></div>`}
+ if(t==='multi'){const rows=String(v).split('\n').filter(Boolean),ph=(/MPAN/.test(lab)?'MPAN':'MPRN')+' — enter N/A if none';h=`<div data-mw="${key}">${(rows.length?rows:['']).map(x=>`<div class="inp" style="margin-bottom:.4rem"><input data-mi="${key}" value="${esc(x)}" inputmode="numeric" placeholder="${ph}"></div>`).join('')}</div><button class="gh" type="button" data-ma="${key}">+ Add another ${/MPAN/.test(lab)?'MPAN':'MPRN'}</button>`}
+ else if(t==='meterid'){const M=ids(sv),opts=[...M.mpan,...M.mprn],oth=v&&!opts.includes(v);h=`<select data-mid="${key}"><option value=""></option>${opts.map(x=>`<option ${x===v?'selected':''}>${esc(x)}</option>`).join('')}<option value="__o" ${oth?'selected':''}>Other / sub-meter — type reference…</option></select><input data-k="${key}" value="${oth?esc(v):''}" placeholder="Sub-meter ID / reference" style="margin-top:.4rem;${oth?'':'display:none'}">`}
+ else if(t==='subm'){const p=String(v).split(' — '),s0=p[0],t0=p.slice(1).join(' — ');h=`<select data-sm="${key}"><option value=""></option><option ${s0==='Yes'?'selected':''}>Yes</option><option ${s0==='No'?'selected':''}>No</option></select><input data-st="${key}" value="${esc(t0)}" placeholder="What does it cover? (if yes)" style="margin-top:.4rem">`}
+ else if(t==='select'||t==='zone'||t==='meter'){let opts=(f[3]||[]).slice();if(t==='zone')opts=sv.zones.filter(Boolean).length?sv.zones.filter(Boolean):['Whole site'];if(t==='meter')opts=ids(sv).all.slice();if(v&&!opts.includes(v))opts.push(v);h=`<select ${na}><option value=""></option>${opts.map(x=>`<option ${x===v?'selected':''}>${esc(x)}</option>`).join('')}</select>`}
+ else if(t==='area')h=`<div class="inp"><textarea ${na}>${esc(v)}</textarea><button class="mic" type="button" title="Dictate">🎙</button></div>`;
+ else if(t==='number')h=`<input ${na} type="number" step="any" inputmode="decimal" value="${esc(v)}">`;
+ else if(t==='time')h=`<input ${na} type="time" value="${esc(v)}">`;
+ else h=`<div class="inp"><input ${na} value="${esc(v)}" ${/mpan|mprn|satellite/i.test(lab)?'inputmode="numeric"':''}>${/mpan|mprn|satellite/i.test(lab)?'':'<button class="mic" type="button" title="Dictate">🎙</button>'}</div>`;
+ const isM=f[1]==='M'&&req,filled=!!v;
+ return `<div class="fld ${isM?(filled?'ok':'rq'):''}" data-fld="${key}"><label>${esc(lab)}${isM?'<b>required</b>':''}</label>${h}${f[4]&&!HIDE.test(f[4])?`<div class="note">${esc(f[4])}</div>`:''}</div>`}
+function annual(sh,bi,i,o){const b=S[sh].blocks[bi],g=l=>{const x=b.f.findIndex(f=>f[0]===l);return x<0?'':o.v[kk(bi,i,x)]||''},w=+g('Operating Weeks per Annum');if(!w)return null;const mn=s=>{const p=s.split(':');return +p[0]*60+ +p[1]};let h=0,any=false;DAYS.forEach(d=>{const s=g(d+' Start Time'),e=g(d+' End Time');if(!s||!e)return;any=true;const a=mn(s),c=mn(e);if(a===0&&c===0)h+=24;else if(c>a)h+=(c-a)/60});return any?Math.round(w*h):null}
+const RENDER_ORDER={heating:[0,1,2,3,8,9,4,5,6,7]};
+function blocks(sh,o,sv){let h='';const order=RENDER_ORDER[sh]||S[sh].blocks.map((_,i)=>i);order.forEach(bi=>{const b=S[sh].blocks[bi];if(!vis(sh,bi,o))return;const n=getN(sh,o,bi),m=hasM(b);
+ for(let i=0;i<Math.max(n,b.rep?0:1);i++){const need=!b.rep||i==0||b.f.some((f,fi)=>o.v[kk(bi,i,fi)]);const rq=b.f.filter(f=>f[1]==='M'&&f[2]!=='auto'),ot=b.f.map((f,fi)=>[f,fi]).filter(([f])=>!(f[1]==='M'&&f[2]!=='auto'));
+  const title=blockTitle(sh,bi,o,i);let body='';
+  if(m)body+=b.f.map((f,fi)=>f[1]==='M'&&f[2]!=='auto'?fld(sh,bi,i,fi,f,o,sv,need):'').join('');
+  const oh=ot.map(([f,fi])=>fld(sh,bi,i,fi,f,o,sv,false)).join('');
+  if(m&&oh)body+=`<details class="opt"><summary>Optional detail — ${rq.length?'complete only if readily available, don’t chase':''}</summary>${oh}</details>`;
+  else if(!m)body+=`<div class="note"><b>Optional section</b> — complete only if readily available; do not chase.</div>`+oh;
+  h+=`<details class="blk" ${(m&&need)||b.init?'open':''}><summary>${esc(title)}<small>${m?(b.rep&&i>0?'optional unless used':'required fields inside'):'optional'}</small></summary><div class="bb">${body}</div></details>`}
+ if(sh==='general'&&b.n==='Meter Register')h+=`<div class="note">Choose each meter from the MPAN/MPRN you entered above, or pick “Other” for a sub-meter reference.</div><button class="gh" data-fill style="margin-bottom:.6rem">Add all MPANs / MPRNs to the register</button>`;
+ if(b.rep)h+=`<div style="margin:-.2rem 0 .9rem;display:flex;gap:.5rem"><button class="gh" data-add="${bi}">+ Add ${esc(blockBaseLabel(sh,bi,o))}</button>${n>(b.default0?0:(m?1:0))?`<button class="dng" data-rm="${bi}">Remove last</button>`:''}</div>`;
+ if(sh==='general'&&b.n==='Site Overview')h+=zonesHtml(sv)});return h}
+function zonesHtml(sv){return `<details class="blk" open><summary>Zones<small>used in every service tab’s Zone dropdown (optional list)</small></summary><div class="bb">${sv.zones.map((z,i)=>`<div class="inp" style="margin-bottom:.4rem"><input data-z="${i}" value="${esc(z)}" placeholder="Zone name"><button class="dng" data-zd="${i}">×</button></div>`).join('')}<button class="gh" data-za>+ Add zone</button></div></details>`}
+function bindForm(root,sh,o,sv,repaint){
+ root.oninput=root.onchange=e=>{const el=e.target;
+  const mk=(el,key)=>{const w=el.closest('.fld');if(w&&(w.classList.contains('rq')||w.classList.contains('ok'))){w.classList.toggle('ok',!!o.v[key]);w.classList.toggle('rq',!o.v[key])}};
+  if(el.dataset.mi){const key=el.dataset.mi;o.v[key]=[...root.querySelectorAll('[data-mi="'+key+'"]')].map(x=>x.value.trim()).filter(Boolean).join('\n');save(sv);mk(el,key);refreshMid(root,sv);banner(sh,o);return}
+  if(el.dataset.mid){const key=el.dataset.mid,inp=root.querySelector('input[data-k="'+key+'"]'),M=ids(sv);if(el.value==='__o'){inp.style.display='';inp.focus();o.v[key]=inp.value.trim()}else{inp.style.display='none';inp.value='';o.v[key]=el.value;const p=key.split('.'),fi=S[sh].blocks[+p[0]].f.findIndex(x=>x[0]==='Fuel'),fk=p[0]+'.'+p[1]+'.'+fi,fo=fi>=0?S[sh].blocks[+p[0]].f[fi][3]||[]:[],want=M.mpan.includes(el.value)?'Electricity':M.mprn.includes(el.value)?'Gas':'';if(want&&fo.includes(want)&&!o.v[fk]){o.v[fk]=want;save(sv);repaint();return}}save(sv);mk(el,key);banner(sh,o);return}
+  if(el.dataset.sm||el.dataset.st){const key=el.dataset.sm||el.dataset.st,a=root.querySelector('[data-sm="'+key+'"]').value,t=root.querySelector('[data-st="'+key+'"]').value.trim();o.v[key]=a?a+(t?' — '+t:''):'';save(sv);mk(el,key);banner(sh,o);return}
+if(el.dataset.z!==undefined){sv.zones[el.dataset.z]=el.value;save(sv);return}if(!el.dataset.k)return;o.v[el.dataset.k]=el.value;save(sv);
+  if(el.tagName==='SELECT'&&/System Type|Site Type|Dedicated/.test(S[sh].blocks[+el.dataset.k.split('.')[0]].f[+el.dataset.k.split('.')[2]][0])){repaint();return}
+  const w=el.closest('.fld');if(w&&w.classList.contains('rq')||w&&w.classList.contains('ok')){w.classList.toggle('ok',!!el.value);w.classList.toggle('rq',!el.value)}
+  root.querySelectorAll('[data-auto]').forEach(a=>{const[bi,i,fi]=a.dataset.auto.split('.').map(Number),f=S[sh].blocks[bi].f[fi];if(f[0]==='Annualised Hours'){const x=annual(sh,bi,i,o);a.textContent=x!=null?x+' h/yr':'—'}else if(f[0]==='Total installed power'){const b=S[sh].blocks[bi],A=+o.v[kk(bi,i,b.f.findIndex(x=>x[0]==='Heater electrical power (kW)'))],C=+o.v[kk(bi,i,b.f.findIndex(x=>x[0]==='Number of heaters'))];a.textContent=A&&C?A*C+' kW':'—'}});
+  banner(sh,o)};
+ root.onclick=e=>{const t=e.target.closest('button');if(!t)return;
+  if(t.dataset.ma){const w=root.querySelector('[data-mw="'+t.dataset.ma+'"]'),d=document.createElement('div');d.className='inp';d.style.marginBottom='.4rem';d.innerHTML='<input inputmode="numeric" placeholder="'+w.querySelector('input').placeholder+'">';d.firstChild.dataset.mi=t.dataset.ma;w.appendChild(d);d.firstChild.focus();return}
+  if(t.dataset.fill!==undefined){const M=ids(sv),mb=S.general.blocks.findIndex(b=>b.n==='Meter Register'),bl=S.general.blocks[mb];let n=getN('general',o,mb);[...M.mpan.map(x=>[x,'Electricity']),...M.mprn.map(x=>[x,'Gas'])].forEach(([id,fu])=>{if(M.reg.includes(id))return;let i=0;for(;i<n;i++)if(!o.v[kk(mb,i,0)])break;if(i===n)n++;o.v[kk(mb,i,0)]=id;o.v[kk(mb,i,1)]=fu});o.n[mb]=n;save(sv);repaint();return}
+if(t.dataset.add!==undefined){const b=+t.dataset.add;o.n[b]=getN(sh,o,b)+1;save(sv);repaint()}
+  if(t.dataset.rm!==undefined){const b=+t.dataset.rm,n=getN(sh,o,b)-1;for(let f=0;f<S[sh].blocks[b].f.length;f++)delete o.v[kk(b,n,f)];o.n[b]=n;save(sv);repaint()}
+  if(t.dataset.za!==undefined){sv.zones.push('');save(sv);repaint()}if(t.dataset.zd!==undefined){sv.zones.splice(+t.dataset.zd,1);save(sv);repaint()}}}
+function refreshMid(root,sv){const M=ids(sv),opts=[...M.mpan,...M.mprn];root.querySelectorAll('select[data-mid]').forEach(sl=>{const cur=sl.value;sl.innerHTML='<option value=""></option>'+opts.map(x=>`<option ${x===cur?'selected':''}>${esc(x)}</option>`).join('')+'<option value="__o"'+(cur==='__o'?' selected':'')+'>Other / sub-meter — type reference…</option>'})}
+function banner(sh,o){const b=$('ban');if(!b)return;const m=miss(sh,o);b.className='ban'+(m.length?'':' ok');b.textContent=m.length?m.length+' required field'+(m.length>1?'s':'')+' still to complete (marked in red)':'All required fields complete ✓'}
+function formPage(sh,o,sv,owner){const keepY=scrollY;
+ const vrfNote=(sh==='heating'&&gv('heating',o,'System Type')==='Other')?`<div class="note" style="margin-bottom:.8rem"><b>System type is \u2018Other\u2019.</b> If this is a Split/VRF unit, use the \u201c+ Add Split/VRF System\u201d section below (its own independent set of questions, separate from the Cooling tab).</div>`:'';
+ $('main').innerHTML=`<div id="ban" class="ban"></div><div class="note" style="margin-bottom:.8rem">Red-marked fields are <b>required</b> for Inspired’s QA. Everything under “Optional detail” is optional — complete only if readily available. Tap 🎙 on any text field to dictate.</div>${vrfNote}${blocks(sh,o,sv)}${mediaBox(owner,'m')}`;
+ bindForm($('main'),sh,o,sv,()=>formPage(sh,o,sv,owner));banner(sh,o);loadMedia($('main'));scrollTo(0,keepY);
+}
+// ---------- screens ----------
+const tile=(l,n)=>`<div class="tile"><b>${n}</b><span>${l}</span></div>`;
+function classifyFuel(sh,o){const f=(gvp(sh,o,'Fuel')||'').toLowerCase();
+ if(f)return /gas|oil|lpg|diesel|biomass|coal|propane|kerosene/.test(f)?'fossil':'elec';
+ if(sh==='heating'){const st=gv('heating',o,'System Type');if(st&&st!=='Electric'&&st!=='Other')return 'fossil';if(st==='Other')return 'elec'}
+ return 'elec'}
+function facts(sv){const obs=[],opp=[];let loadElec=0,loadFossil=0,left=0;
+ ALL.forEach(sh=>(sh==='general'?[sv.gen]:(sv.na[sh]?[]:sv.entries[sh]||[])).forEach(o=>{left+=miss(sh,o).length;
+  if(sh!=='general'){const L=+gvp(sh,o,'Estimated connected load')||0;if(classifyFuel(sh,o)==='fossil')loadFossil+=L;else loadElec+=L}
+  S[sh].blocks.forEach((b,bi)=>{if(!vis(sh,bi,o))return;const c=b.n==='Surveyor Comments',p=b.n==='Initial ESOs Potential Identification';if(!c&&!p)return;b.f.forEach((f,fi)=>{const v=o.v[kk(bi,0,fi)];if(v)(c?obs:opp).push({sh,z:gv(sh,o,'Zone'),t:v})})})}));
+ const M=ids(sv),done=ALL.filter(x=>['g','n'].includes(status(sv,x))).length;
+ return{nb:sv.zones.filter(Boolean).length,nm:M.all.length,no:obs.length,nop:opp.length,obs,opp,M,left,done,pct:Math.round(done/ALL.length*100),loadElec:Math.round(loadElec*10)/10,loadFossil:Math.round(loadFossil*10)/10}}
+function siteRow(i,f){const g=l=>gv('general',D[i].gen,l);const loadNote=[f.loadElec?f.loadElec+'kW elec':'',f.loadFossil?f.loadFossil+'kW fossil':''].filter(Boolean).join(', ');return `<div class="site" data-o="${i}"><div class="sn">${esc(g('Site Name'))||'Untitled site'}${g('Survey Date')?' — '+esc(g('Survey Date')):''}</div><div class="stats">${tile('Buildings',f.nb)}${tile('Meters',f.nm)}${tile('Observations',f.no)}${tile('Opportunities',f.nop)}</div><div class="prog"><div style="width:${f.pct}%"></div></div><div class="note">${f.done}/${ALL.length} sections complete — ${f.left} required field${f.left==1?'':'s'} left${loadNote?' — '+loadNote:''} — <span data-ph="${i}">0</span> photos</div><div class="dots">${dotsOf(D[i])}</div></div>`}
+const dl2=(t,a)=>a.length?`<details class="blk"><summary>${t} (${a.length})</summary><div class="bb">${a.map(x=>`<div class="note" style="color:var(--ink);margin:.4rem 0">${x}</div>`).join('')}</div></details>`:'';
+function summaryHtml(sv){const f=facts(sv),it=o=>`<b>${esc(S[o.sh].label)}${o.z?' — '+esc(o.z):''}:</b> ${esc(o.t)}`;return `<div class="tiles">${tile('Buildings / zones',f.nb)}${tile('Meters',f.nm)}${tile('Observations',f.no)}${tile('Opportunities',f.nop)}${tile('Elec. load (kW)',f.loadElec||'—')}${tile('Fossil fuel load (kW)',f.loadFossil||'—')}</div>`+dl2('Buildings / zones',sv.zones.filter(Boolean).map(esc))+dl2('Meters',f.M.all.map(x=>esc(x)+' <span style="color:var(--soft)">('+(f.M.mpan.includes(x)?'MPAN':f.M.mprn.includes(x)?'MPRN':'sub-meter')+')</span>'))+dl2('Observations',f.obs.map(it))+dl2('Opportunities',f.opp.map(it))}
+function dotsOf(sv){return ALL.map(s=>`<span class="dot ${status(sv,s)}"></span>`).join('')}
+function paint(){const sv=D[V.id];$('bar').style.display='flex';
+ if(V.s==='dash'){$('crumb').textContent='';$('bar').innerHTML='<button class="pri" id="nb">+ New site survey</button>';$('nb').onclick=()=>newSheet('');$('main').oninput=$('main').onchange=null;
+  const I=Object.keys(D),G={};I.forEach(i=>{const c=(gv('general',D[i].gen,'Customer Name')||'').trim(),k=c.toLowerCase()||'~';(G[k]=G[k]||{name:c||'No customer name',ids:[]}).ids.push(i)});
+  const F={};I.forEach(i=>F[i]=facts(D[i]));const T=k=>I.reduce((a,i)=>a+F[i][k],0);
+  $('main').innerHTML=I.length?`<div class="tiles">${tile('Customers',Object.keys(G).length)}${tile('In progress',I.filter(i=>F[i].done<ALL.length).length)}${tile('Completed',I.filter(i=>F[i].done===ALL.length).length)}</div>`+Object.entries(G).map(([k,g])=>`<div class="card"><div class="cn" data-cust="${esc(k)}" data-custname="${esc(g.name)}" style="cursor:pointer">${esc(g.name)}</div><div class="note">${g.ids.length} site${g.ids.length>1?'s':''}</div>${g.ids.map(i=>siteRow(i,F[i])).join('')}<button class="gh" style="margin-top:.6rem" data-addsite="${esc(g.name==='No customer name'?'':g.name)}">+ Add another site for this customer</button></div>`).join(''):'<div class="note" style="text-align:center;padding:3rem 0">No surveys yet. Start your first ESOS site survey.</div>';
+  $('main').onclick=e=>{const a=e.target.closest('[data-addsite]');if(a){newSheet(a.dataset.addsite);return}const n=e.target.closest('[data-cust]');if(n){go('cust',{custKey:n.dataset.cust,custName:n.dataset.custname});return}const c=e.target.closest('[data-o]');if(c)go('sv',{id:c.dataset.o})};
+  mAll().then(all=>I.forEach(i=>{const el=document.querySelector('[data-ph="'+i+'"]');if(el)el.textContent=all.filter(m=>m.owner.startsWith(i+'|')&&m.kind==='photo').length}));return}
+ if(V.s==='cust'){const key=V.custKey,name=V.custName||'Customer';
+  $('crumb').innerHTML='<a id="bk">← All customers</a> / '+esc(name)+' — Notes';$('bk').onclick=()=>go('dash');
+  $('bar').innerHTML='<button class="gh" id="bb">← Back</button>';$('bb').onclick=()=>go('dash');
+  const rec=CN[key]||(CN[key]={notes:''});
+  $('main').innerHTML=`<div class="sec">Notes</div><div class="inp"><textarea id="custNotes" style="min-height:10em" placeholder="Type notes, or tap 🎙 to dictate…">${esc(rec.notes||'')}</textarea><button class="mic" type="button" title="Dictate">🎙</button></div>`+mediaBox('cust|'+key,'m');
+  $('custNotes').oninput=()=>{rec.notes=$('custNotes').value;saveCust(key)};
+  loadMedia($('main'));return}
+ if(V.s==='sv'){$('crumb').innerHTML='<a id="bk">← All surveys</a> / '+esc(gv('general',sv.gen,'Site Name'));$('bk').onclick=()=>go('dash');
+  $('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="gh" id="ex">Export CSV</button><button class="gh" id="ph">Download photos &amp; notes</button><button class="gh" id="fw">Fill real workbook</button><input type="file" id="fwFile" accept=".xlsm,.xlsx" style="display:none">';$('bb').onclick=()=>go('dash');$('ex').onclick=()=>exportCsv(sv);$('ph').onclick=()=>exportMedia(sv);$('fw').onclick=()=>$('fwFile').click();$('fwFile').onchange=()=>{const f=$('fwFile').files[0];$('fwFile').value='';if(f)fillRealWorkbook(sv,f)};
+  const done=ALL.filter(s=>['g','n'].includes(status(sv,s))).length,st=gv('general',sv.gen,'Site Type');
+  $('main').innerHTML=`<div class="sum"><b>${done} of ${ALL.length}</b> sections complete${st&&S.expected[st]?`<br>Expected for a ${esc(st).toLowerCase()} site: ${esc(S.expected[st])}`:''}</div>`+summaryHtml(sv)+`<div class="sec">Sections</div>`+ALL.map(s=>{const x=status(sv,s),m=s==='general'?miss('general',sv.gen).length:(sv.entries[s]||[]).reduce((a,e)=>a+miss(s,e).length,0),c=(sv.entries[s]||[]).length;
+   return `<button class="row" data-s="${s}"><span class="dot ${x}"></span><span class="t">${s==='general'?'General (site, meters, zones)':S[s].label}<small>${ST[x]}${x==='a'||(x==='r'&&s==='general'&&m)?' — '+m+' required left':''}${s!=='general'&&c?' — '+c+' logged':''}</small></span></button>`}).join('');
+  $('main').onclick=e=>{const b=e.target.closest('[data-s]');if(b)b.dataset.s==='general'?go('gen'):go('svc',{svc:b.dataset.s})};return}
+ if(V.s==='gen'){$('crumb').innerHTML='<a id="bk">← '+esc(gv('general',sv.gen,'Site Name'))+'</a> / General';$('bk').onclick=()=>go('sv');$('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="pri" id="dn">Done</button>';$('bb').onclick=$('dn').onclick=()=>go('sv');formPage('general',sv.gen,sv,sv.id+'|general');return}
+ if(V.s==='svc'){const s=V.svc,l=sv.entries[s]||(sv.entries[s]=[]);$('crumb').innerHTML='<a id="bk">← '+esc(gv('general',sv.gen,'Site Name'))+'</a> / '+S[s].label;$('bk').onclick=()=>go('sv');
+  $('bar').innerHTML=`<button class="gh" id="bb">← Back</button><button class="pri" id="ad">+ Add ${S[s].label.toLowerCase()} entry</button>`;$('bb').onclick=()=>go('sv');$('ad').onclick=()=>{const e={id:uid(),v:{},n:{}};l.push(e);save(sv);go('ent',{e:e.id})};
+  $('main').innerHTML=`<label style="display:flex;gap:.6rem;align-items:center;font-size:.9rem;color:var(--ink);margin-bottom:1rem"><input type="checkbox" id="na" style="width:auto" ${sv.na[s]?'checked':''}> Not applicable — this service isn’t present at this site</label>`+(sv.na[s]?'':l.map((e,i)=>{const m=miss(s,e).length;return `<button class="row" data-e="${e.id}"><span class="dot ${m?(Object.values(e.v).some(x=>x)?'a':'r'):'g'}"></span><span class="t">${esc(gv(s,e,'System Type')||S[s].label)} ${i+1}<small>${esc(gv(s,e,'Zone'))}${m?' — '+m+' required left':' — complete'}</small></span></button>`}).join('')||'<div class="note">No entries yet.</div>');
+  $('na').onchange=e=>{sv.na[s]=e.target.checked;save(sv);paint()};$('main').onclick=e=>{const b=e.target.closest('[data-e]');if(b)go('ent',{e:b.dataset.e})};return}
+ if(V.s==='ent'){const s=V.svc,l=sv.entries[s],e=l.find(x=>x.id===V.e);$('crumb').innerHTML='<a id="bk">← '+S[s].label+'</a> / entry';$('bk').onclick=()=>go('svc');
+  $('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="dng" id="del">Delete entry</button><button class="pri" id="dn">Done</button>';$('bb').onclick=$('dn').onclick=()=>go('svc');$('del').onclick=()=>{if(confirm('Delete this entry?')){sv.entries[s]=l.filter(x=>x!==e);save(sv);go('svc')}};formPage(s,e,sv,sv.id+'|'+e.id)}}
+function newSheet(pre){$('sh').innerHTML='<h3>New site survey</h3><div class="fld"><label>Customer name</label><input id="nc" value="'+esc(pre||'')+'"></div><div class="fld"><label>Site name</label><input id="ns"></div><div style="display:flex;gap:.5rem;margin-top:1rem"><button class="gh" id="x" style="flex:1">Cancel</button><button class="pri" id="ok" style="flex:1">Create</button></div>';$('sb').classList.add('o');
+ $('x').onclick=()=>$('sb').classList.remove('o');$('ok').onclick=()=>{const id=uid(),sv={id,zones:[],gen:{v:{},n:{}},entries:{},na:{}};const set=(l,x)=>{const p=findF('general',l);if(p)sv.gen.v[kk(p[0],0,p[1])]=x};set('Customer Name',$('nc').value.trim());set('Site Name',$('ns').value.trim());set('Survey Date',new Date().toLocaleDateString('en-GB'));D[id]=sv;save(sv);$('sb').classList.remove('o');go('sv',{id})}}
+function rowsFor(sv){const R=[['Sheet','Entry','Zone','Block','Instance','Field','Requirement','Type','Value','Row','Overflow']];
+ ALL.forEach(sh=>{(sh==='general'?[sv.gen]:sv.entries[sh]||[]).forEach((o,ei)=>{S[sh].blocks.forEach((b,bi)=>{if(!vis(sh,bi,o))return;const hasRow=Array.isArray(b.inst)&&b.inst.length;for(let i=0;i<Math.max(getN(sh,o,bi),b.rep?0:1);i++)b.f.forEach((f,fi)=>{const v=o.v[kk(bi,i,fi)];if(!v||f[2]==='auto')return;const rowOk=hasRow&&f.length>5&&f[5]!=null;const k=rowOk?Math.min(i,b.inst.length-1):0;R.push([S[sh].label,sh==='general'?'':ei+1,sh==='general'?'':gv(sh,o,'Zone'),b.n,i+1,f[0],f[1]==='M'?'Mandatory':'Optional',f[2]==='number'||f[2]==='time'||f[2]==='multi'?f[2]:'text',v,rowOk?b.inst[k]+(f[5]-b.inst[0]):'',rowOk?(i>=b.inst.length?1:''):''])})})});
+  if(sv.na[sh])R.push([S[sh].label,'','','','','Not applicable to this site','','','Yes','',''])});
+ sv.zones.filter(Boolean).forEach((z,i)=>R.push(['General','','','Zones',i+1,'Zone '+(i+1),'Optional','text',z,S.zoneRows[i]||'',S.zoneRows[i]?'':1]));return R}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click()}
+function rowsToObjects(sv){const data=rowsFor(sv),header=data[0];return data.slice(1).map(r=>{const o={};header.forEach((h,i)=>o[h]=r[i]);return o})}
+// ---------- fill the real Inspired .xlsm directly (port of fill_esos_workbook.py) ----------
+// Single source of truth: this is wbfill/fillLogic.js verbatim (tested in Node against the real blank workbook).
+// Port of fill_esos_workbook.py to the browser. Designed to be pasted into the app's
+// inline <script> where JSZip, DOMParser and XMLSerializer are already global.
+// Exposed here via a factory so it can also be exercised from a Node test harness.
+function makeFillWorkbook({ JSZip, DOMParser, XMLSerializer }) {
+  const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+  const colLetter = (n) => { let s = ''; while (n) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
+  const colNum = (letters) => { let n = 0; for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64); return n; };
+  const hasVal = (v) => v !== undefined && v !== null && String(v).trim() !== '';
+
+  // Fields that exist in the app (Heating > "Other" > Split/VRF) but have no cell in Inspired's
+  // real blank workbook at all. New rows for these are created at the bottom of the sheet the
+  // first time a survey actually uses them, then cloned for each further instance — mirroring how
+  // extra Meter Register entries are appended on the General tab, just starting from zero instead
+  // of one pre-existing template row-set. Field order/labels/mandatory-flags/notes mirror the app's
+  // own schema for these two blocks exactly.
+  // Each entry: [label, mandatory ('M'/'O'), note shown in column E, data type for styling/
+  // conversion purposes]. The "note" text (often just "Free text") is a description shown to the
+  // surveyor and is NOT a reliable signal of the underlying data type - e.g. several "Free text"
+  // fields below are actually numeric (kW values) - so the explicit 4th element is what decides
+  // number formatting and value conversion, independent of the note wording.
+  const SYNTHETIC_BLOCKS = {
+    'Heating|Split / VRF System': [
+      ['Location of External units', 'O', 'Free text', 'text'],
+      ['External unit Make and Model', 'O', 'Free text', 'text'],
+      ['External unit electrical power (kW)', 'M', 'Free text', 'number'],
+      ['No. of External units', 'M', 'Free text', 'text'],
+      ['Indoor unit Make and Model', 'O', 'Free text', 'text'],
+      ['Indoor unit electrical power (kW)', 'M', 'Free text', 'number'],
+      ['Indoor unit cooling output (kW)', 'O', 'Free text', 'number'],
+      ['Indoor unit heating output (kW)', 'O', 'Free text', 'number'],
+      ['No. of Internal units', 'M', 'Free text', 'text'],
+      ['System COPref', 'O', 'Free text', 'text'],
+      ['Approximate age of system (years)', 'O', 'Free text', 'text'],
+    ],
+    'Heating|Split / VRF System - Controls': [
+      ['Type of controller', 'O', 'Free text', 'text'],
+      ['HAND/AUTO/OFF', 'O', 'Free text', 'text'],
+      ['Who operates/manages', 'O', 'Free text', 'text'],
+      ['Space set point temperature(s)  (°C)', 'M', 'Numerical field only', 'number'],
+      ['Monday Start Time', 'O', '24-hour format', 'time'],
+      ['Monday End Time', 'O', '24-hour format', 'time'],
+      ['Tuesday Start Time', 'O', '24-hour format', 'time'],
+      ['Tuesday End Time', 'O', '24-hour format', 'time'],
+      ['Wednesday Start Time', 'O', '24-hour format', 'time'],
+      ['Wednesday End Time', 'O', '24-hour format', 'time'],
+      ['Thursday Start Time', 'O', '24-hour format', 'time'],
+      ['Thursday End Time', 'O', '24-hour format', 'time'],
+      ['Friday Start Time', 'O', '24-hour format', 'time'],
+      ['Friday End Time', 'O', '24-hour format', 'time'],
+      ['Saturday Start Time', 'O', '24-hour format', 'time'],
+      ['Saturday End Time', 'O', '24-hour format', 'time'],
+      ['Sunday Start Time', 'O', '24-hour format', 'time'],
+      ['Sunday End Time', 'O', '24-hour format', 'time'],
+      ['Operating Weeks per Annum', 'O', 'Number', 'number'],
+      ['Annualised Hours', 'O', ' Automatic', 'formula'],
+    ],
+  };
+
+  function convertCell(type, v) {
+    if (type === 'number') {
+      const x = parseFloat(v);
+      if (!isNaN(x) && isFinite(x)) return ['n', x];
+      return ['s', v];
+    }
+    if (type === 'time') {
+      const m = String(v).match(/^(\d{1,2}):(\d{2})/);
+      if (m) return ['n', (parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) / 1440];
+      return ['s', v];
+    }
+    if (type === 'multi') {
+      return ['s', String(v).split('\n').map(x => x.trim()).filter(Boolean).join(', ')];
+    }
+    return ['s', v];
+  }
+
+  function getRow(sheetData, n, doc) {
+    const rows = Array.from(sheetData.getElementsByTagNameNS(NS, 'row'));
+    for (const row of rows) {
+      const r = parseInt(row.getAttribute('r'), 10);
+      if (r === n) return row;
+      if (r > n) { const nr = doc.createElementNS(NS, 'row'); nr.setAttribute('r', String(n)); row.parentNode.insertBefore(nr, row); return nr; }
+    }
+    const nr = doc.createElementNS(NS, 'row'); nr.setAttribute('r', String(n)); sheetData.appendChild(nr); return nr;
+  }
+
+  function getCell(row, ref, doc) {
+    const colLetters = ref.match(/^[A-Z]+/)[0];
+    const cn = colNum(colLetters);
+    const cells = Array.from(row.getElementsByTagNameNS(NS, 'c'));
+    for (const c of cells) {
+      const cc = colNum(c.getAttribute('r').match(/^[A-Z]+/)[0]);
+      if (cc === cn) return c;
+      if (cc > cn) { const nc = doc.createElementNS(NS, 'c'); nc.setAttribute('r', ref); c.parentNode.insertBefore(nc, c); return nc; }
+    }
+    const nc = doc.createElementNS(NS, 'c'); nc.setAttribute('r', ref); row.appendChild(nc); return nc;
+  }
+
+  function cloneRowAt(sheetData, doc, srcRow, newR) {
+    const clone = srcRow.cloneNode(true);
+    clone.setAttribute('r', String(newR));
+    const cells = Array.from(clone.getElementsByTagNameNS(NS, 'c'));
+    for (const c of cells) {
+      const col = c.getAttribute('r').match(/^[A-Z]+/)[0];
+      c.setAttribute('r', col + newR);
+      if (col === 'F') {
+        while (c.firstChild) c.removeChild(c.firstChild);
+        c.removeAttribute('t');
+      }
+    }
+    sheetData.appendChild(clone);
+    return clone;
+  }
+
+  function updateDimension(doc) {
+    const dim = doc.getElementsByTagNameNS(NS, 'dimension')[0];
+    if (!dim) return;
+    const cells = doc.getElementsByTagNameNS(NS, 'c');
+    const rows = doc.getElementsByTagNameNS(NS, 'row');
+    if (!cells.length || !rows.length) return;
+    let maxCol = 1, maxRow = 1;
+    for (const c of cells) { const m = c.getAttribute('r').match(/^[A-Z]+/); if (m) { const cn = colNum(m[0]); if (cn > maxCol) maxCol = cn; } }
+    for (const r of rows) { const rn = parseInt(r.getAttribute('r'), 10); if (rn > maxRow) maxRow = rn; }
+    dim.setAttribute('ref', 'A1:' + colLetter(maxCol) + maxRow);
+  }
+
+  // rows: array of row objects with keys matching rowsFor()'s header:
+  // Sheet, Entry, Zone, Block, Instance, Field, Requirement, Type, Value, Row, Overflow
+  async function fillWorkbook(rows, templateArrayBuffer, opts) {
+    opts = opts || {};
+    const zin = await JSZip.loadAsync(templateArrayBuffer);
+    const parser = new DOMParser();
+    const serializer = new XMLSerializer();
+
+    async function readXml(path) {
+      const f = zin.file(path);
+      if (!f) throw new Error('Missing part in workbook: ' + path);
+      const txt = await f.async('string');
+      return parser.parseFromString(txt, 'application/xml');
+    }
+
+    // Shared strings + a style "donor" row, used only to style brand-new synthetic rows so they
+    // look consistent with the rest of the sheet. Read from whichever file was actually uploaded
+    // (never hardcoded indices) so this keeps working across future revisions of the template.
+    let sstCache = null;
+    async function getSharedStrings() {
+      if (sstCache) return sstCache;
+      const f = zin.file('xl/sharedStrings.xml');
+      if (!f) { sstCache = []; return sstCache; }
+      const sdoc = parser.parseFromString(await f.async('string'), 'application/xml');
+      sstCache = Array.from(sdoc.getElementsByTagNameNS(NS, 'si')).map(si =>
+        Array.from(si.getElementsByTagNameNS(NS, 't')).map(t => t.textContent).join('')
+      );
+      return sstCache;
+    }
+    function cellText(c, sst) {
+      const t = c.getAttribute('t');
+      if (t === 'inlineStr') { const el = c.getElementsByTagNameNS(NS, 't')[0]; return el ? el.textContent : ''; }
+      const v = c.getElementsByTagNameNS(NS, 'v')[0];
+      if (!v) return '';
+      if (t === 's') { const idx = parseInt(v.textContent, 10); return sst[idx] || ''; }
+      return v.textContent;
+    }
+    // ---- styles.xml engine -------------------------------------------------------------------
+    // Reads the uploaded file's own styles.xml (never hardcoded indices, so it survives template
+    // revisions) and can derive new cellXfs entries from an existing one: swap a time number
+    // format for General, and/or force centre + wrap alignment. Derived styles are cached.
+    let styleCache = null;
+    async function getStyleInfo() {
+      if (styleCache) return styleCache;
+      const f = zin.file('xl/styles.xml');
+      if (!f) { styleCache = { isTime: () => false, isPercent: () => false, isGeneral: () => true, derive: (i) => i, modified: false, doc: null }; return styleCache; }
+      const doc = parser.parseFromString(await f.async('string'), 'application/xml');
+      const customFmts = {};
+      const numFmtsEl = doc.getElementsByTagNameNS(NS, 'numFmts')[0];
+      if (numFmtsEl) Array.from(numFmtsEl.getElementsByTagNameNS(NS, 'numFmt')).forEach(nf => { customFmts[nf.getAttribute('numFmtId')] = nf.getAttribute('formatCode') || ''; });
+      const builtinTimeIds = new Set([18, 19, 20, 21, 45, 46, 47]); // built-in time-of-day formats
+      const builtinPctIds = new Set([9, 10]);
+      const cellXfsEl = doc.getElementsByTagNameNS(NS, 'cellXfs')[0];
+      const xfs = cellXfsEl ? Array.from(cellXfsEl.getElementsByTagNameNS(NS, 'xf')) : [];
+      const fmtOf = (idx) => { const xf = xfs[idx]; return xf ? xf.getAttribute('numFmtId') : null; };
+      const isTime = (idx) => {
+        const id = fmtOf(idx); if (id == null) return false;
+        if (customFmts[id] === undefined) return builtinTimeIds.has(parseInt(id, 10));
+        return /[hHmMsS]/.test(customFmts[id].replace(/"[^"]*"/g, '')) && !/[yYdD]/.test(customFmts[id]);
+      };
+      const isPercent = (idx) => {
+        const id = fmtOf(idx); if (id == null) return false;
+        if (customFmts[id] === undefined) return builtinPctIds.has(parseInt(id, 10));
+        return customFmts[id].includes('%');
+      };
+      const hasCentreWrap = (xf) => {
+        const al = xf.getElementsByTagNameNS(NS, 'alignment')[0];
+        return !!al && al.getAttribute('horizontal') === 'center' && al.getAttribute('vertical') === 'center' && al.getAttribute('wrapText') === '1';
+      };
+      const cache = {};
+      const isGeneral = (idx) => fmtOf(idx) === '0';
+      const info = { isTime, isPercent, isGeneral, modified: false, doc };
+      info.derive = (idx, opts2) => {
+        idx = parseInt(idx, 10);
+        const xf = xfs[idx]; if (!xf) return idx;
+        const needGeneral = !!opts2.general && isTime(idx);
+        const needCentre = !!opts2.centre && !hasCentreWrap(xf);
+        if (!needGeneral && !needCentre) return idx;
+        const key = idx + '|' + needGeneral + '|' + needCentre;
+        if (key in cache) return cache[key];
+        const nx = xf.cloneNode(true);
+        if (needGeneral) { nx.setAttribute('numFmtId', '0'); nx.setAttribute('applyNumberFormat', '1'); }
+        if (needCentre) {
+          let al = nx.getElementsByTagNameNS(NS, 'alignment')[0];
+          if (!al) { al = doc.createElementNS(NS, 'alignment'); nx.insertBefore(al, nx.firstChild); }
+          al.setAttribute('horizontal', 'center'); al.setAttribute('vertical', 'center'); al.setAttribute('wrapText', '1');
+          nx.setAttribute('applyAlignment', '1');
+        }
+        cellXfsEl.appendChild(nx);
+        const ni = xfs.length; xfs.push(nx);
+        cellXfsEl.setAttribute('count', String(xfs.length));
+        cache[key] = ni; info.modified = true;
+        return ni;
+      };
+      // Column C block-colour: force a cell style onto the solid #44546A fill (adds the fill / reuses the
+      // font of an existing slate cell so the text stays readable). Cached per source style.
+      const SLATE = 'FF44546A';
+      const fillsEl = doc.getElementsByTagNameNS(NS, 'fills')[0];
+      const fillRgb = (idx) => {
+        const xf = xfs[idx]; if (!xf || !fillsEl) return null;
+        const fl = fillsEl.getElementsByTagNameNS(NS, 'fill')[parseInt(xf.getAttribute('fillId') || '0', 10)];
+        const pf = fl && fl.getElementsByTagNameNS(NS, 'patternFill')[0];
+        const fg = pf && pf.getElementsByTagNameNS(NS, 'fgColor')[0];
+        return pf && pf.getAttribute('patternType') === 'solid' && fg ? (fg.getAttribute('rgb') || null) : null;
+      };
+      const slateCache = {};
+      info.fillRgb = fillRgb;
+      info.forceSlate = (idx) => {
+        idx = parseInt(idx, 10);
+        if (isNaN(idx) || !xfs[idx] || !fillsEl) return idx;
+        if (fillRgb(idx) === SLATE) return idx;
+        if (idx in slateCache) return slateCache[idx];
+        const fl = Array.from(fillsEl.getElementsByTagNameNS(NS, 'fill'));
+        let fid = fl.findIndex(x => { const pf = x.getElementsByTagNameNS(NS, 'patternFill')[0], fg = x.getElementsByTagNameNS(NS, 'fgColor')[0]; return pf && pf.getAttribute('patternType') === 'solid' && fg && fg.getAttribute('rgb') === SLATE; });
+        if (fid < 0) {
+          const nf = doc.createElementNS(NS, 'fill'), pf = doc.createElementNS(NS, 'patternFill'), fg = doc.createElementNS(NS, 'fgColor'), bg = doc.createElementNS(NS, 'bgColor');
+          pf.setAttribute('patternType', 'solid'); fg.setAttribute('rgb', SLATE); bg.setAttribute('indexed', '64');
+          pf.appendChild(fg); pf.appendChild(bg); nf.appendChild(pf); fillsEl.appendChild(nf);
+          fid = fl.length; fillsEl.setAttribute('count', String(fid + 1));
+        }
+        const nx = xfs[idx].cloneNode(true);
+        nx.setAttribute('fillId', String(fid)); nx.setAttribute('applyFill', '1');
+        const donor = xfs.find((x, i) => fillRgb(i) === SLATE && x.getAttribute('fontId'));
+        if (donor) { nx.setAttribute('fontId', donor.getAttribute('fontId')); nx.setAttribute('applyFont', '1'); }
+        cellXfsEl.appendChild(nx);
+        const ni = xfs.length; xfs.push(nx);
+        cellXfsEl.setAttribute('count', String(xfs.length));
+        slateCache[idx] = ni; info.modified = true;
+        return ni;
+      };
+      styleCache = info;
+      return info;
+    }
+    // Finds representative "question rows" (column A reads exactly Mandatory/Optional - the universal
+    // marker on real data rows) and returns the styles new rows should borrow, so they look native:
+    //  - A..E: the most common style per column, separately for Mandatory and Optional rows (the two
+    //    statuses are formatted differently in column A);
+    //  - lastRow: the styles of a block's closing row (the 'Annualised Hours' row, which carries the
+    //    thicker bottom border), used for the final row of each new block;
+    //  - value column F: a time-formatted donor for time fields and a General-format donor for
+    //    everything else (so 12.5 shows as 12.5, never as a time/date/0.00).
+    async function findStyleDonor(sheetData) {
+      const sst = await getSharedStrings();
+      const { isTime, isGeneral, forceSlate } = await getStyleInfo();
+      const tally = { Mandatory: {}, Optional: {} };
+      let lastRow = null, timeF = null, generalF = null, anyF = null, firstC = null;
+      const colOf = (c) => c.getAttribute('r').match(/^[A-Z]+/)[0];
+      for (const row of Array.from(sheetData.getElementsByTagNameNS(NS, 'row'))) {
+        if (parseInt(row.getAttribute('r'), 10) < 2) continue;
+        const cells = Array.from(row.getElementsByTagNameNS(NS, 'c'));
+        const aCell = cells.find(c => colOf(c) === 'A');
+        if (!aCell) continue;
+        const status = cellText(aCell, sst).trim();
+        if (status !== 'Mandatory' && status !== 'Optional') continue;
+        const styles = {}; const texts = {};
+        cells.forEach(c => { const s = c.getAttribute('s'); if (s != null) styles[colOf(c)] = s; texts[colOf(c)] = cellText(c, sst).trim(); });
+        if (!styles.A || !styles.F) continue;
+        ['A', 'B', 'C', 'D', 'E'].forEach(col => { if (styles[col] != null) { const t = tally[status][col] = tally[status][col] || {}; t[styles[col]] = (t[styles[col]] || 0) + 1; } });
+        if (firstC == null && styles.C != null) firstC = styles.C;
+        if (!lastRow && texts.D === 'Annualised Hours') lastRow = styles;
+        if (anyF == null) anyF = styles.F;
+        const fIdx = parseInt(styles.F, 10);
+        if (isTime(fIdx)) { if (timeF == null && /Start Time/.test(texts.D)) timeF = styles.F; }
+        else if (generalF == null && isGeneral(fIdx)) generalF = styles.F;
+      }
+      const mode = (obj) => { let best = null, n = -1; for (const k in (obj || {})) if (obj[k] > n) { n = obj[k]; best = k; } return best; };
+      const pick = (status) => { const o = {}; ['A', 'B', 'C', 'D', 'E'].forEach(c => { const m = mode(tally[status][c]); if (m != null) o[c] = m; }); return o; };
+      const mand = pick('Mandatory'), opt = pick('Optional');
+      // Column C: use the sheet's first block colour (not the modal one, which can be a grey sub-section style)
+      if (firstC != null) { const sc = String(forceSlate ? forceSlate(firstC) : firstC); mand.C = sc; opt.C = sc; if (lastRow) lastRow = Object.assign({}, lastRow, { C: sc }); }
+      const base = Object.keys(opt).length >= 5 ? opt : mand;
+      if (!base.A) return {};
+      // Prefer the 'Operating Weeks' F style (General, same border as time cells) when present.
+      return {
+        Mandatory: Object.assign({}, opt, mand), Optional: Object.assign({}, mand, opt), lastRow: lastRow || null,
+        F: { time: timeF != null ? timeF : anyF, general: generalF, anyF },
+      };
+    }
+
+    const wbDoc = await readXml('xl/workbook.xml');
+    const relsTxt = await zin.file('xl/_rels/workbook.xml.rels').async('string');
+    const relsDoc = parser.parseFromString(relsTxt, 'application/xml');
+    const relMap = {};
+    Array.from(relsDoc.getElementsByTagName('Relationship')).forEach(r => { relMap[r.getAttribute('Id')] = r.getAttribute('Target'); });
+    const paths = {};
+    Array.from(wbDoc.getElementsByTagNameNS(NS, 'sheet')).forEach(s => {
+      const name = s.getAttribute('name');
+      const rid = s.getAttributeNS(RNS, 'id');
+      const target = relMap[rid];
+      if (!target) return;
+      paths[name] = target.replace(/^\.?\//, '').startsWith('xl/') ? target.replace(/^\.?\//, '') : 'xl/' + target.replace(/^\.?\//, '');
+    });
+
+    const notes = [];
+    const generalRows = rows.filter(r => r.Sheet === 'General' && hasVal(r.Row));
+    const templateRows = {};
+    generalRows.forEach(r => { (templateRows[r.Block] = templateRows[r.Block] || new Set()).add(Number(r.Row)); });
+    // The app passes the FULL row list of every General block (not just the rows that happen to hold a
+    // value), so a cloned extra entry (e.g. Meter 2) gets every row of the block - including trailing
+    // optional rows left blank, such as 'Sub-meter coverage / profile notes'.
+    if (opts.blockRows) for (const b of Object.keys(opts.blockRows)) { templateRows[b] = templateRows[b] || new Set(); opts.blockRows[b].forEach(x => templateRows[b].add(Number(x))); }
+    const overflowGroups = {};
+    generalRows.forEach(r => { if (String(r.Overflow) === '1') { const k = r.Block + '|' + r.Instance; (overflowGroups[k] = overflowGroups[k] || []).push(r); } });
+
+    const trees = {};
+    const rowRedirect = {};
+
+    if (Object.keys(overflowGroups).length && paths['General']) {
+      const genDoc = await readXml(paths['General']);
+      const sheetData = genDoc.getElementsByTagNameNS(NS, 'sheetData')[0];
+      let maxR = 0;
+      Array.from(sheetData.getElementsByTagNameNS(NS, 'row')).forEach(rw => { maxR = Math.max(maxR, parseInt(rw.getAttribute('r'), 10)); });
+      let nextRow = maxR + 2;
+      const groupKeys = Object.keys(overflowGroups).sort((a, b) => {
+        const ai = a.lastIndexOf('|'), bi = b.lastIndexOf('|');
+        const ba = a.slice(0, ai), bb = b.slice(0, bi);
+        if (ba !== bb) return ba < bb ? -1 : 1;
+        return Number(a.slice(ai + 1)) - Number(b.slice(bi + 1));
+      });
+      for (const key of groupKeys) {
+        const idx = key.lastIndexOf('|');
+        const block = key.slice(0, idx), instance = key.slice(idx + 1);
+        const tmpl = Array.from(templateRows[block] || []).sort((a, b) => a - b);
+        if (!tmpl.length) continue;
+        const base = nextRow;
+        const rowsArr = Array.from(sheetData.getElementsByTagNameNS(NS, 'row'));
+        tmpl.forEach((origRow, offset) => {
+          const src = rowsArr.find(rw => parseInt(rw.getAttribute('r'), 10) === origRow);
+          if (!src) return;
+          const newR = base + offset;
+          cloneRowAt(sheetData, genDoc, src, newR);
+          rowRedirect[block + '|' + instance + '|' + origRow] = newR;
+        });
+        nextRow = base + tmpl.length + 1;
+        notes.push(`General: added '${block}' entry ${instance} as new rows ${base}-${base + tmpl.length - 1} at the bottom of the sheet`);
+      }
+      trees['General'] = genDoc;
+    }
+
+    // ---- synthetic blocks: fields that exist in the app but have no cell anywhere in the ----
+    // ---- real workbook (currently just Heating > Split/VRF). Create them from scratch.     ----
+    const synthRedirect = {}; // "sheet|block|instance|fieldLabel" -> row number
+    const synthSheets = new Set(Object.keys(SYNTHETIC_BLOCKS).map(k => k.split('|')[0]));
+    for (const sheetName of synthSheets) {
+      if (!paths[sheetName]) continue;
+      const pairs = new Set();
+      rows.forEach(r => { if (r.Sheet === sheetName && SYNTHETIC_BLOCKS[sheetName + '|' + r.Block]) pairs.add(r.Block + '|' + r.Instance); });
+      if (!pairs.size) continue;
+      if (!trees[sheetName]) trees[sheetName] = await readXml(paths[sheetName]);
+      const doc = trees[sheetName];
+      const sheetData = doc.getElementsByTagNameNS(NS, 'sheetData')[0];
+      const donorStyle = await findStyleDonor(sheetData);
+      // How many entry columns (F, G, H, ...) this fill actually needs on this sheet - driven by
+      // the highest Entry number present in the data, so this isn't limited to the first entry's
+      // column. One Heating entry uses column F, a second uses G, a third H, and so on.
+      let maxEntry = 1;
+      rows.forEach(r => { if (r.Sheet === sheetName) maxEntry = Math.max(maxEntry, Number(r.Entry) || 1); });
+      let maxR = 0;
+      Array.from(sheetData.getElementsByTagNameNS(NS, 'row')).forEach(rw => { maxR = Math.max(maxR, parseInt(rw.getAttribute('r'), 10)); });
+      let nextRow = maxR + 2;
+      const sortedPairs = Array.from(pairs).sort((a, b) => {
+        const ai = a.lastIndexOf('|'), bi = b.lastIndexOf('|');
+        const ba = a.slice(0, ai), bb = b.slice(0, bi);
+        if (ba !== bb) return ba < bb ? -1 : 1;
+        return Number(a.slice(ai + 1)) - Number(b.slice(bi + 1));
+      });
+      for (const pk of sortedPairs) {
+        const idx = pk.lastIndexOf('|');
+        const block = pk.slice(0, idx), instance = pk.slice(idx + 1);
+        const fieldList = SYNTHETIC_BLOCKS[sheetName + '|' + block];
+        const base = nextRow;
+        const rowOf = {}; fieldList.forEach(([l], i) => { rowOf[l] = base + i; });
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        // Same Annualised Hours formula Inspired use on every other controls block, re-pointed at
+        // this block's own rows (weeks x sum over the week of end-start, 24h if both 00:00).
+        const annualFormula = (c) => {
+          const w = rowOf['Operating Weeks per Annum'];
+          if (!w || days.some(dy => !rowOf[dy + ' Start Time'] || !rowOf[dy + ' End Time'])) return null;
+          const parts = days.map(dy => { const st = c + rowOf[dy + ' Start Time'], en = c + rowOf[dy + ' End Time']; return `IFERROR(IF(OR(${st}="",${en}=""),0,IF(AND(${st}=0,${en}=0),24,(${en}-${st})*24*(${en}>${st}))),0)`; });
+          return `_xlfn.LET(_xlpm.weeks, ${c}${w}, _xlpm.sys_hrs, _xlpm.weeks*(${parts.join('+')}), _xlpm.sys_hrs)`;
+        };
+        const sinfo = await getStyleInfo();
+        const fd = donorStyle.F || {};
+        const generalStyle = fd.general != null ? fd.general : (fd.anyF != null ? String(sinfo.derive(fd.anyF, { general: true })) : null);
+        fieldList.forEach(([label, mand, note, dtype], i) => {
+          const newR = base + i;
+          const row = getRow(sheetData, newR, doc);
+          const isLast = i === fieldList.length - 1;
+          const dst = donorStyle[mand === 'M' ? 'Mandatory' : 'Optional'] || {};
+          const last = donorStyle.lastRow;
+          // Column A keeps its Mandatory/Optional styling (they differ); B-E borrow the block's closing-row
+          // border on the last row of each new block, like every native block does.
+          const styleFor = (col) => (isLast && last && last[col] != null && col !== 'A') ? last[col] : (isLast && last && col === 'A' && mand !== 'M' && last.A != null ? last.A : dst[col]);
+          const setText = (col, text) => {
+            const c = getCell(row, col + newR, doc);
+            const s = styleFor(col);
+            if (s != null) c.setAttribute('s', s);
+            if (text === '') return;
+            c.setAttribute('t', 'inlineStr');
+            const is = doc.createElementNS(NS, 'is');
+            const t = doc.createElementNS(NS, 't');
+            t.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
+            t.textContent = text;
+            is.appendChild(t);
+            c.appendChild(is);
+          };
+          setText('A', mand === 'M' ? 'Mandatory' : 'Optional');
+          setText('B', sheetName);
+          setText('C', block);
+          setText('D', label);
+          setText('E', note);
+          // Every entry column (F, G, H, ... one per occurrence of the service) gets a style matching this
+          // field's declared type: time fields a time format, formula rows the template's calculated-cell
+          // style, everything else General (so 12.5 shows as 12.5 - never as a time/date).
+          const valStyle = dtype === 'time' ? fd.time : (dtype === 'formula' ? (last && last.F != null ? last.F : generalStyle) : generalStyle);
+          for (let entryN = 1; entryN <= maxEntry; entryN++) {
+            const cl = colLetter(5 + entryN);
+            const vc = getCell(row, cl + newR, doc);
+            if (valStyle != null) vc.setAttribute('s', valStyle);
+            if (dtype === 'formula') {
+              const f = annualFormula(cl);
+              if (f) { const fe = doc.createElementNS(NS, 'f'); fe.textContent = f; vc.appendChild(fe); }
+            }
+          }
+          if (dtype !== 'formula') synthRedirect[sheetName + '|' + block + '|' + instance + '|' + label] = newR;
+        });
+        nextRow = base + fieldList.length + 1;
+        notes.push(`${sheetName}: added '${block}' entry ${instance} as new rows ${base}-${base + fieldList.length - 1} at the bottom of the sheet (not present in the original blank workbook)`);
+      }
+    }
+
+    const cells = new Map();
+    for (const r of rows) {
+      const synthRow = synthRedirect[r.Sheet + '|' + r.Block + '|' + r.Instance + '|' + r.Field];
+      if (synthRow != null) {
+        const col = colLetter(5 + (Number(r.Entry) || 1));
+        const [kind, val] = convertCell(r.Type, r.Value);
+        cells.set(`${r.Sheet}|${col}|${synthRow}`, [kind, val]);
+        continue;
+      }
+      if (!hasVal(r.Row)) {
+        if (hasVal(r.Value) && r.Field !== 'Not applicable to this site') notes.push(`No workbook cell for: ${r.Sheet} / ${r.Field}`);
+        continue;
+      }
+      const sheet = r.Sheet;
+      if (!paths[sheet]) { notes.push(`Sheet not found in workbook: ${sheet}`); continue; }
+      const col = sheet === 'General' ? 'F' : colLetter(5 + (Number(r.Entry) || 1));
+      const origRow = Number(r.Row);
+      const redirected = sheet === 'General' ? rowRedirect[r.Block + '|' + r.Instance + '|' + origRow] : null;
+      const [kind, val] = convertCell(r.Type, r.Value);
+      if (redirected) { cells.set(`${sheet}|${col}|${redirected}`, [kind, val]); continue; }
+      const key = `${sheet}|${col}|${origRow}`;
+      if (String(r.Overflow) === '1' || cells.has(key)) {
+        const prev = cells.get(key) || ['s', ''];
+        const txt = (prev[1] !== '' ? prev[1] + '\n' : '') + `[${r.Instance}] ${val}`;
+        cells.set(key, ['s', txt]);
+        notes.push(`${sheet} ${col}${origRow}: extra item ${r.Instance} appended into the same cell (workbook has no spare block)`);
+      } else {
+        cells.set(key, [kind, val]);
+      }
+    }
+
+    const neededSheets = new Set(Array.from(cells.keys()).map(k => k.split('|')[0]));
+    for (const sheet of neededSheets) if (!trees[sheet]) trees[sheet] = await readXml(paths[sheet]);
+
+    const missingCols = new Set();
+    for (const key of cells.keys()) {
+      const [sheet, col] = key.split('|');
+      if (col === 'F') continue;
+      const sheetData = trees[sheet].getElementsByTagNameNS(NS, 'sheetData')[0];
+      const row1 = Array.from(sheetData.getElementsByTagNameNS(NS, 'row')).find(rw => parseInt(rw.getAttribute('r'), 10) === 1);
+      const exists = row1 && Array.from(row1.getElementsByTagNameNS(NS, 'c')).some(c => c.getAttribute('r') === col + '1');
+      if (!exists) missingCols.add(sheet + ' column ' + col);
+    }
+    if (missingCols.size && !opts.force) {
+      return { ok: false, missingCols: Array.from(missingCols), notes };
+    }
+
+    const sinfoW = await getStyleInfo();
+    const written = {};
+    for (const [key, pair] of cells) {
+      const [sheet, col, rownStr] = key.split('|');
+      const rown = Number(rownStr);
+      const kind = pair[0], val = pair[1];
+      const doc = trees[sheet];
+      const sheetData = doc.getElementsByTagNameNS(NS, 'sheetData')[0];
+      const row = getRow(sheetData, rown, doc);
+      row.removeAttribute('spans');
+      const cell = getCell(row, col + rown, doc);
+      if (cell.getElementsByTagNameNS(NS, 'f').length) { notes.push(`${sheet} ${col}${rown} holds a formula - left alone`); continue; }
+      // A brand-new cell (e.g. a column the Setup macro hasn't styled) inherits column F's style on that row.
+      if (cell.getAttribute('s') == null) {
+        const fc = Array.from(row.getElementsByTagNameNS(NS, 'c')).find(c => c.getAttribute('r') === 'F' + rown);
+        if (fc && fc.getAttribute('s') != null) cell.setAttribute('s', fc.getAttribute('s'));
+      }
+      while (cell.firstChild) cell.removeChild(cell.firstChild);
+      if (kind === 'n') {
+        cell.removeAttribute('t');
+        const v = doc.createElementNS(NS, 'v');
+        // Percentage-formatted cells (e.g. Small Power 'Level of service (%)') store 0.5 for 50%; the app
+        // holds the figure as typed (50), so convert - otherwise it shows as 5000%.
+        const sIdx = cell.getAttribute('s');
+        v.textContent = String(sIdx != null && sinfoW.isPercent(parseInt(sIdx, 10)) ? val / 100 : val);
+        cell.appendChild(v);
+      } else {
+        if (String(val).length > 28) {
+          // Excel does not re-autofit rows on open, so set an explicit height that fits the wrapped text
+          // (estimated from the column width); never shrink below the template's own height.
+          const cn = colNum(col);
+          let wch = 9;
+          Array.from(doc.getElementsByTagNameNS(NS, 'col')).forEach(cd => { if (cn >= +cd.getAttribute('min') && cn <= +cd.getAttribute('max') && cd.getAttribute('width')) wch = +cd.getAttribute('width'); });
+          const perLine = Math.max(8, Math.floor(wch * 1.05));
+          const lines = String(val).split(/\r?\n/).reduce((n, ln) => n + Math.max(1, Math.ceil(ln.length / perLine)), 0);
+          const need = Math.min(409, lines * 15 + 3);
+          const cur = parseFloat(row.getAttribute('ht') || '0');
+          if (need > cur) { row.setAttribute('ht', String(need)); row.setAttribute('customHeight', '1'); }
+        }
+        cell.setAttribute('t', 'inlineStr');
+        const is = doc.createElementNS(NS, 'is');
+        const t = doc.createElementNS(NS, 't');
+        t.setAttributeNS('http://www.w3.org/XML/1998/namespace', 'xml:space', 'preserve');
+        t.textContent = String(val);
+        is.appendChild(t);
+        cell.appendChild(is);
+      }
+      written[sheet] = (written[sheet] || 0) + 1;
+    }
+
+    // ---- workbook-wide tidy of the value columns (F, G, H, ... on every data tab) ----
+    // (a) a numeric row (kW load, power, counts, hours ...) must not carry a time-of-day number format,
+    //     or a number like 12.5 shows as a time; time rows (Start/End Time, '24-hour format') keep theirs.
+    // (b) value cells are centred and wrapped, including extra entry columns the Setup macro adds.
+    {
+      const sinfo = await getStyleInfo();
+      const sst = await getSharedStrings();
+      const DATA_TABS = ['General', 'Heating', 'DHW', 'Cooling', 'Ventilation', 'Lighting', 'Process', 'Catering', 'Leisure', 'Small Power', 'Other'];
+      for (const tab of DATA_TABS) {
+        if (!paths[tab]) continue;
+        if (!trees[tab]) trees[tab] = await readXml(paths[tab]);
+        const sd = trees[tab].getElementsByTagNameNS(NS, 'sheetData')[0];
+        for (const row of Array.from(sd.getElementsByTagNameNS(NS, 'row'))) {
+          if (parseInt(row.getAttribute('r'), 10) < 2) continue;
+          const cs = Array.from(row.getElementsByTagNameNS(NS, 'c'));
+          const txtOf = (L) => { const c = cs.find(x => x.getAttribute('r').match(/^[A-Z]+/)[0] === L); return c ? cellText(c, sst) : ''; };
+          const isTimeRow = /time|24-hour|hh:mm/i.test(txtOf('D') + ' ' + txtOf('E'));
+          for (const c of cs) {
+            if (colNum(c.getAttribute('r').match(/^[A-Z]+/)[0]) < 6) continue;
+            const s = c.getAttribute('s'); if (s == null) continue;
+            const ns = sinfo.derive(s, { general: !isTimeRow, centre: true });
+            if (String(ns) !== s) c.setAttribute('s', String(ns));
+          }
+        }
+      }
+    }
+
+    Object.values(trees).forEach(doc => updateDimension(doc));
+    const calcPr = wbDoc.getElementsByTagNameNS(NS, 'calcPr')[0];
+    if (calcPr) calcPr.setAttribute('fullCalcOnLoad', '1');
+
+    const outZip = new JSZip();
+    const pathToSheet = {}; Object.entries(paths).forEach(([s, p]) => { pathToSheet[p] = s; });
+    const fileNames = Object.keys(zin.files);
+    for (const name of fileNames) {
+      const entry = zin.files[name];
+      if (entry.dir) continue;
+      if (name === 'xl/workbook.xml') {
+        outZip.file(name, serializer.serializeToString(wbDoc));
+      } else if (name === 'xl/styles.xml' && styleCache && styleCache.modified) {
+        outZip.file(name, serializer.serializeToString(styleCache.doc));
+      } else if (pathToSheet[name] && trees[pathToSheet[name]]) {
+        outZip.file(name, serializer.serializeToString(trees[pathToSheet[name]]));
+      } else {
+        const bytes = await entry.async('uint8array');
+        outZip.file(name, bytes, { binary: true });
+      }
+    }
+    const blob = await outZip.generateAsync({ type: opts.outputType || 'nodebuffer' });
+    return { ok: true, blob, notes, written };
+  }
+
+  function planNumbers(rows) {
+    const zones = rows.filter(r => r.Block === 'Zones').length;
+    const per = {};
+    rows.forEach(r => { if (r.Sheet !== 'General' && hasVal(r.Entry)) per[r.Sheet] = Math.max(per[r.Sheet] || 0, Number(r.Entry)); });
+    const mx = Object.values(per).length ? Math.max(...Object.values(per)) : 1;
+    return { zones, per, maxFields: mx };
+  }
+
+  return { fillWorkbook, planNumbers, colLetter, colNum };
+}
+
+
+const wbEngine=()=>makeFillWorkbook({JSZip:typeof JSZip!=='undefined'?JSZip:undefined,DOMParser,XMLSerializer});
+async function wbFillWorkbook(rows,buf,opts){opts=Object.assign({outputType:'blob'},opts||{});return wbEngine().fillWorkbook(rows,buf,opts)}
+function wbPlanNumbers(rows){return wbEngine().planNumbers(rows)}
+// Every row of each General block (not just the ones holding a value) so cloned extra entries - e.g. Meter 2 - are complete.
+function wbBlockRows(){const o={};S.general.blocks.forEach(b=>{if(Array.isArray(b.inst)&&b.inst.length)o[b.n]=b.f.filter(f=>f.length>5&&f[5]!=null).map(f=>f[5])});return o}
+async function fillRealWorkbook(sv,file){
+ toast('Filling workbook…');
+ let rows;
+ try{rows=rowsToObjects(sv)}catch(e){console.error(e);alert('Could not read the survey data for filling — '+(e&&e.message?e.message:'see console'));return}
+ if(typeof JSZip==='undefined'){alert('Zip library not loaded — check your internet connection and try again');return}
+ let buf;
+ try{buf=await file.arrayBuffer()}catch(e){alert('Could not read that file — please try again');return}
+ let res;
+ try{res=await wbFillWorkbook(rows,buf,{blockRows:wbBlockRows()})}catch(e){console.error('fill failed',e);alert('Could not fill the workbook — '+(e&&e.message?e.message:'see console')+'. Make sure you selected the correct Inspired .xlsm file.');return}
+ if(!res.ok){
+  const plan=wbPlanNumbers(rows);
+  const goAhead=confirm('This workbook isn\'t set up for the amount of data in this survey yet.\n\nMissing columns:\n'+res.missingCols.map(m=>'• '+m).join('\n')+
+   '\n\nTo fix this properly: open your BLANK Inspired workbook, go to the Setup tab, enter:\n  Number of Zones = '+plan.zones+'\n  Number of Fields for Population = '+plan.maxFields+
+   '\nrun the Setup macro, save it, then pick that file here instead.\n\nOr press OK to fill anyway — entries that don\'t fit will be appended into the nearest cell instead of their own column/row, flagged below.');
+  if(!goAhead)return;
+  try{res=await wbFillWorkbook(rows,buf,{force:true,blockRows:wbBlockRows()})}catch(e){console.error('forced fill failed',e);alert('Could not fill the workbook — '+(e&&e.message?e.message:'see console'));return}
+ }
+ const siteName=(gv('general',sv.gen,'Site Name')||'site').replace(/\W+/g,'_');
+ dl(res.blob,siteName+'_Inspired_ESOS_FILLED.xlsm');
+ toast('Downloaded filled workbook');
+ if(res.notes&&res.notes.length)alert('Workbook filled — '+res.notes.length+' item(s) need a quick check:\n\n'+res.notes.map(n=>'• '+n).join('\n'));
+}
+function exportCsv(sv){try{dl(new Blob([rowsFor(sv).map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n')],{type:'text/csv'}),(gv('general',sv.gen,'Site Name')||'site').replace(/\W+/g,'_')+'_esos_data.csv')}catch(e){console.error('exportCsv failed',e);toast('Export failed — '+(e&&e.message?e.message:'see console')+'. Please tell your developer.')}}
+async function mediaForSurvey(sv){
+ const local=(await mAll()).filter(m=>m.owner.startsWith(sv.id+'|'));
+ let remote=[];
+ if(fbReady&&surveysCol){try{const snap=await surveysCol.doc(sv.id).collection('media').get();remote=snap.docs.map(d=>({id:d.id,remote:true,...d.data()}))}catch(e){console.warn('could not fetch remote media',e)}}
+ const localIds=new Set(local.map(m=>m.id));
+ return [...local,...remote.filter(r=>!localIds.has(r.id))];
+}
+async function exportMedia(sv){
+ toast('Preparing download…');
+ let all;
+ try{all=await mediaForSurvey(sv)}catch(e){toast('Could not gather photos/notes — '+(e&&e.message?e.message:'see console'));console.error(e);return}
+ if(!all.length){toast('No photos or voice notes yet');return}
+ if(typeof JSZip==='undefined'){toast('Zip library not loaded — check your internet connection and try again');return}
+ const zip=new JSZip();
+ const siteName=(gv('general',sv.gen,'Site Name')||'site').replace(/\W+/g,'_');
+ const used={};const failedItems=[];
+ for(const m of all){
+  const own=m.owner.split('|')[1];
+  // Each section gets its own sub-folder in the zip (General/, Heating/, Lighting/, Small_Power/ ...)
+  const secKey=own==='general'?'general':own==='cust'?null:ALL.find(s=>(sv.entries[s]||[]).some(e=>e.id===own));
+  const nm=own==='cust'?'Customer_Notes':secKey?String((S[secKey]&&S[secKey].label)||secKey).replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,''):'Other_items';
+  const entryList=secKey&&secKey!=='general'?(sv.entries[secKey]||[]):[];
+  const entryNo=entryList.findIndex(e=>e.id===own)+1;
+  const fileBase=entryList.length>1&&entryNo>0?nm+'_Entry'+entryNo:nm;
+  let blob=m.blob,remoteFetchFailed=false;
+  if(!blob&&m.remote&&m.url){try{const r=await fetch(m.url);if(!r.ok)throw new Error('HTTP '+r.status);blob=await r.blob()}catch(e){console.warn('could not download remote media',m.id,e);remoteFetchFailed=true}}
+  if(!blob){failedItems.push({name:nm+' — '+(m.name||m.kind),cloudOnly:!!m.remote,corsLikely:remoteFetchFailed});continue}
+  const key=nm+'/'+fileBase;used[key]=(used[key]||0)+1;
+  zip.file(nm+'/'+fileBase+'_'+used[key]+(m.kind==='photo'?'.jpg':'.m4a'),blob);
+ }
+ if(!Object.keys(used).length){
+  const corsSuspected=failedItems.some(f=>f.corsLikely);
+  alert('Could not download any photos or voice notes.'+(corsSuspected?'\n\nThese were only on another device and had to be fetched from the cloud, which failed — this is almost always because Cross-Origin access (CORS) has not been enabled on your Firebase Storage bucket yet. Ask your developer to run the one-off "gsutil cors set" command for your bucket, then try again.':' Check your connection and try again.'));
+  return;
+ }
+ try{
+  const zipBlob=await zip.generateAsync({type:'blob'});
+  dl(zipBlob,siteName+'_photos_notes.zip');
+  if(failedItems.length){
+   const corsSuspected=failedItems.some(f=>f.corsLikely);
+   toast('Downloaded zip — '+failedItems.length+' item(s) could not be included');
+   alert((failedItems.length)+' item(s) could not be added to the zip and were skipped:\n\n'+failedItems.map(f=>'• '+f.name).join('\n')+(corsSuspected?'\n\nThese are cloud-synced items from another device. This almost always means Cross-Origin access (CORS) is not yet enabled on your Firebase Storage bucket — ask your developer to run the one-off "gsutil cors set" command for the bucket, then try the download again.':''));
+  }else{
+   toast('Downloaded zip');
+  }
+ }catch(e){console.error('zip generation failed',e);toast('Could not build the zip file — '+(e&&e.message?e.message:'see console'))}
+}
+try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(!fbReady){paint()}else{
+  let redirectErr=null;
+  auth.getRedirectResult().then(r=>{if(r&&r.user){uidCur=r.user.uid;startCloudSync();paint()}}).catch(e=>{
+    redirectErr='Google sign-in failed: '+(e.code||'')+' '+e.message;
+    console.warn('google redirect',e);
+    if(!uidCur)showAuthScreen(redirectErr);
+  });
+  auth.onAuthStateChanged(user=>{
+    if(!user){showAuthScreen(redirectErr);return}
+    uidCur=user.uid;startCloudSync();paint();
+  });
+}
+</script></body></html>
