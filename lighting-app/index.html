@@ -256,6 +256,35 @@
       word-break: break-word;
       animation: slideUp 0.2s ease;
     }
+
+    :root { color-scheme: light; }
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; } }
+    :root[data-theme="dark"] { color-scheme: dark; }
+    select option, select optgroup { background: var(--card); color: var(--ink); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
+    .calcbox { padding: 0.6rem; background: rgba(46,139,87,0.12); border-radius: 6px; font-weight: 600; min-height: 2.6rem; }
+    input:disabled { opacity: 0.65; }
+    .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+    .tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 0.9rem 1rem; }
+    .tile.big { border-left: 4px solid var(--navy); }
+    .tile .tl { font-size: 0.78rem; color: var(--soft); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .tile .tv { font-size: 1.6rem; font-weight: 800; line-height: 1.2; margin-top: 0.15rem; }
+    .tile .tv small { font-size: 0.85rem; font-weight: 600; color: var(--soft); }
+    .tile .ts { font-size: 0.85rem; color: var(--soft); margin-top: 0.1rem; }
+    .zone-name { font-weight: 700; margin-bottom: 0.4rem; word-break: break-word; }
+    .zbar { height: 6px; background: var(--line); border-radius: 3px; margin-top: 0.5rem; overflow: hidden; }
+    .zbar > span { display: block; height: 100%; background: var(--navy); }
+
+    .tabs { display: flex; gap: 0.4rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tabs button { flex: 1; min-width: 0; }
+    .tblwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--card); margin-bottom: 1rem; }
+    .reftbl { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+    .reftbl th { text-align: left; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--soft); padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--line); }
+    .reftbl td { padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .reftbl tr:last-child td { border-bottom: none; }
+    .reftbl td.n { white-space: nowrap; font-weight: 700; }
+    .reftbl button { padding: 0.3rem 0.6rem; font-size: 0.8rem; white-space: nowrap; }
+    .refhead { font-weight: 700; margin: 1.1rem 0 0.4rem; }
     @keyframes slideUp {
       from { opacity: 0; transform: translateY(1rem); }
       to { opacity: 1; transform: translateY(0); }
@@ -439,13 +468,109 @@ function paint() {
   else if (V.page === 'sitelist') paintSiteList();
   else if (V.page === 'surveylist') paintSurveyList();
   else if (V.page === 'newentry') paintNewEntry();
+  else if (V.page === 'ref') paintRef();
   else if (V.page === 'viewentry') paintViewEntry();
+}
+
+// ---------- Reference data (from the Lighting template's reference tabs) ----------
+const LUX_REF = [
+  ['General office', '300–500', 'Screen-based work favours lower end'],
+  ['Reception', '300', ''],
+  ['Meeting room', '300–500', ''],
+  ['Corridors / circulation', '100', ''],
+  ['Stairs', '150', ''],
+  ['WC / toilets', '100–150', ''],
+  ['Storage / warehouse (general)', '100–150', ''],
+  ['Warehouse (fine picking)', '300', ''],
+  ['Retail (general)', '300–500', ''],
+  ['Retail (till/display)', '500–750', ''],
+  ['Industrial (general assembly)', '300', ''],
+  ['Industrial (fine work)', '500–750', ''],
+  ['Plant rooms', '150', ''],
+  ['Car parks (covered)', '50–75', ''],
+  ['Commercial kitchen', '500', ''],
+  ['Classroom', '300–500', '']
+];
+const TUBE_REF = [
+  { group: 'T8 (26 mm diameter, G13 bi-pin) — most common in commercial buildings', rows: [
+    ['2ft (600 mm)', 'F18W', 18, ''], ['3ft (900 mm)', 'F30W', 30, ''],
+    ['4ft (1200 mm)', 'F36W', 36, 'Most common office/retail size'],
+    ['5ft (1500 mm)', 'F58W', 58, ''], ['6ft (1800 mm)', 'F70W', 70, 'Less common size']
+  ]},
+  { group: 'T5 HE (16 mm diameter, standard output)', rows: [
+    ['549 mm', 'FQ14W / F14T5', 14, ''], ['849 mm', 'FQ21W / F21T5', 21, ''],
+    ['1149 mm', 'FQ28W / F28T5', 28, ''], ['1449 mm', 'FQ35W / F35T5', 35, '']
+  ]},
+  { group: 'T5 HO (high output)', rows: [
+    ['549 mm', 'F24W/HO', 24, ''], ['849 mm', 'F39W/HO', 39, ''],
+    ['1149 mm', 'F54W/HO', 54, ''], ['1449 mm', 'F80W/HO', 80, '']
+  ]},
+  { group: 'T12 (38 mm) — largely phased out, still found in older buildings', rows: [
+    ['4ft (1200 mm)', 'F40W', 40, ''], ['8ft (2400 mm)', 'F75W', 75, 'Slimline'], ['8ft (2400 mm)', 'F110W', 110, 'High output']
+  ]}
+];
+const BALLAST_NOTES = [
+  'Driver loss normally already included in stated luminaire wattage',
+  'Industry rule of thumb — electronic ballasts run ~20–25% more efficiently than magnetic',
+  'Industry rule of thumb — magnetic ballast loss typically ~15–25% over lamp nominal wattage',
+  'Conservative mid-point estimate — confirm on site where possible'
+];
+
+function openRef(from) {
+  V.refBack = from;
+  if (!V.refTab) V.refTab = 'lux';
+  V.page = 'ref';
+  paint();
+}
+
+function paintRef() {
+  const fromForm = V.refBack === 'newentry';
+  $('crumb').textContent = 'Reference';
+  $('bar').style.display = 'flex';
+  $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button>';
+
+  const tabs = [['lux', 'Lux levels'], ['tubes', 'Tube wattages'], ['ballast', 'Ballast loss']];
+  let html = '<h2>Reference</h2><div class="tabs">' +
+    tabs.map(([k, l]) => `<button class="${V.refTab === k ? 'pri' : 'gh'}" data-tab="${k}">${l}</button>`).join('') + '</div>';
+
+  if (V.refTab === 'lux') {
+    html += `<p class="note">Typical recommended illuminance. Indicative only — confirm against the current CIBSE/SLL Code for Lighting and BS EN 12464-1 for critical or specialist spaces.</p>`;
+    html += '<div class="tblwrap"><table class="reftbl"><thead><tr><th>Space type</th><th>Lux</th></tr></thead><tbody>' +
+      LUX_REF.map(r => `<tr><td>${esc(r[0])}${r[2] ? `<div class="note">${esc(r[2])}</div>` : ''}</td><td class="n">${esc(r[1])}</td></tr>`).join('') +
+      '</tbody></table></div>';
+  } else if (V.refTab === 'tubes') {
+    html += `<p class="note">Nominal wattages of common linear fluorescent tubes.${fromForm ? ' Tap <b>Use</b> to put a wattage into the luminaire you are entering.' : ''}</p>`;
+    TUBE_REF.forEach(g => {
+      html += `<div class="refhead">${esc(g.group)}</div><div class="tblwrap"><table class="reftbl"><thead><tr><th>Length</th><th>Code</th><th>W</th>${fromForm ? '<th></th>' : ''}</tr></thead><tbody>` +
+        g.rows.map(r => `<tr><td>${esc(r[0])}${r[3] ? `<div class="note">${esc(r[3])}</div>` : ''}</td><td>${esc(r[1])}</td><td class="n">${r[2]} W</td>${fromForm ? `<td><button class="gh" data-watt="${r[2]}">Use</button></td>` : ''}</tr>`).join('') +
+        '</tbody></table></div>';
+    });
+    html += `<div class="card note"><b>Supply of new tubes:</b> in Great Britain the RoHS mercury exemptions for linear fluorescent lamps (T5, T8, T12) and CFLs under 30 W ended on 1 February 2024, so new non-compliant lamps can no longer be placed on the market — useful context when recommending LED replacement. Source: <a href="https://www.legislation.gov.uk/uksi/2023/658/made" target="_blank" rel="noopener" style="color:var(--navy)">SI 2023/658</a>. Check current guidance for stock and Northern Ireland.</div>`;
+  } else {
+    html += `<p class="note">Extra power drawn by the ballast / driver on top of the lamp wattage. The app applies the figure automatically: <b>load = lamps × lamp W × (1 + loss) × no. of luminaires ÷ 1000</b>. Where the ballast is left on Auto it is picked from the lamp technology (LED/halogen/incandescent 0%, T5 high-frequency 8%, T8 magnetic 20%, other 15%). These are rule-of-thumb figures, not a substitute for a clamp-meter reading.</p>`;
+    html += '<div class="tblwrap"><table class="reftbl"><thead><tr><th>Ballast / driver type</th><th>Loss</th></tr></thead><tbody>' +
+      BALLASTS.map((b, i) => `<tr><td>${esc(b)}<div class="note">${esc(BALLAST_NOTES[i])}</div></td><td class="n">${Math.round(BALLAST_LOSS[i] * 100)}%</td></tr>`).join('') +
+      '</tbody></table></div>';
+  }
+
+  $('main').innerHTML = html;
+  $('backBtn').onclick = () => { V.page = V.refBack || 'dash'; paint(); };
+  document.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { V.refTab = b.dataset.tab; paint(); }; });
+  document.querySelectorAll('[data-watt]').forEach(b => {
+    b.onclick = () => {
+      if (V.entry) V.entry.watt = b.dataset.watt;
+      V.page = 'newentry';
+      paint();
+      toast('Lamp wattage set to ' + b.dataset.watt + ' W');
+    };
+  });
 }
 
 function paintDash() {
   $('crumb').textContent = '';
   $('bar').style.display = 'flex';
-  $('bar').innerHTML = '<button class="pri" id="newCustBtn">+ New Customer</button>';
+  $('bar').innerHTML = '<button class="gh" id="refBtn">Reference</button><button class="pri" id="newCustBtn">+ New Customer</button>';
+  $('refBtn').onclick = () => openRef('dash');
   
   let html = '<h2>Lighting Surveys</h2><p class="note">Select a customer to view or create a lighting survey.</p>';
   
@@ -529,6 +654,40 @@ function paintSiteList() {
   });
 }
 
+const fmtKw = n => n.toLocaleString('en-GB', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmtKwh = n => Math.round(n).toLocaleString('en-GB');
+
+function siteDashboardHtml(siteSurveys) {
+  let totalKw = 0, totalKwh = 0, fittings = 0;
+  const zones = {};
+  siteSurveys.forEach(sv => (sv.entries || []).forEach(e => {
+    const kw = parseFloat(e.load) || 0;
+    const kwh = parseFloat(e.energy) || 0;
+    totalKw += kw; totalKwh += kwh; fittings += parseFloat(e.qty) || 0;
+    const name = (e.zone || '(no zone)').trim();
+    const key = name.toLowerCase();
+    if (!zones[key]) zones[key] = { name, kw: 0, kwh: 0, fittings: 0 };
+    zones[key].kw += kw; zones[key].kwh += kwh; zones[key].fittings += parseFloat(e.qty) || 0;
+  }));
+  const zoneList = Object.values(zones).sort((a, b) => b.kwh - a.kwh);
+  if (!zoneList.length) return '';
+
+  let h = '<div class="tiles">';
+  h += `<div class="tile big"><div class="tl">Total lighting load</div><div class="tv">${fmtKw(totalKw)} <small>kW</small></div><div class="ts">${fmtKwh(fittings)} luminaires</div></div>`;
+  h += `<div class="tile big"><div class="tl">Total annual energy</div><div class="tv">${fmtKwh(totalKwh)} <small>kWh/yr</small></div><div class="ts">${zoneList.length} zone${zoneList.length !== 1 ? 's' : ''}</div></div>`;
+  h += '</div>';
+  h += '<h3>By zone</h3><div class="tiles">';
+  zoneList.forEach(z => {
+    const pct = totalKwh > 0 ? Math.round((z.kwh / totalKwh) * 100) : 0;
+    h += `<div class="tile"><div class="zone-name">${esc(z.name)}</div>
+      <div class="tl">Load</div><div class="tv" style="font-size:1.25rem">${fmtKw(z.kw)} <small>kW</small></div>
+      <div class="tl" style="margin-top:0.4rem">Energy</div><div class="tv" style="font-size:1.25rem">${fmtKwh(z.kwh)} <small>kWh/yr</small></div>
+      <div class="zbar"><span style="width:${pct}%"></span></div><div class="ts">${pct}% of site energy</div></div>`;
+  });
+  h += '</div>';
+  return h;
+}
+
 function paintSurveyList() {
   const site = sites.find(s => s.id === V.siteId);
   $('crumb').innerHTML = `<a onclick="V.page='dash';paint()" style="cursor:pointer;color:var(--navy)">Customers</a> / ${esc(cust[V.custKey].name)} / ${esc(site.name || 'Untitled')}`;
@@ -536,7 +695,7 @@ function paintSurveyList() {
   $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button><button class="pri" id="newSurveyBtn">+ New Lighting Survey</button>';
   
   const siteSurveys = surveys.filter(sv => sv.siteId === V.siteId);
-  let html = `<h2>${esc(site.name)}</h2><p class="note">Lighting surveys for this site.</p>`;
+  let html = `<h2>${esc(site.name)}</h2>` + siteDashboardHtml(siteSurveys) + `<h3>Lighting surveys</h3>`;
   
   if (siteSurveys.length === 0) {
     html += '<div class="card"><p class="note">No lighting surveys yet. Create one to start collecting data.</p></div>';
@@ -630,210 +789,292 @@ function paintViewEntry() {
   $('fillWbBtn').onclick = () => fillWorkbook(sv);
 }
 
+// ---------- Reference lists ----------
+const LUM_TYPES = ['Batten/strip', 'Pendant', 'Downlight', 'Spotlights', 'Bollard', 'Wall-mounted', 'Recessed', 'Other'];
+const LAMP_TECHS = ['LED', 'Fluorescent T8', 'Fluorescent T5', 'Halogen', 'Incandescent', 'Other'];
+const BALLASTS = ['LED driver (no tube)', 'High Frequency (electronic)', 'Conventional (magnetic)', 'Unknown / not recorded'];
+const BALLAST_LOSS = [0, 0.08, 0.2, 0.15];
+const CONTROL_TYPES = [
+  'Manual switch',
+  'Time clock / timer',
+  'Occupancy (PIR) sensor',
+  'Daylight sensor / photocell',
+  'Occupancy + daylight sensor',
+  'Dimming',
+  'BMS / DALI control',
+  'Pull cord',
+  'Other'
+];
+// Operating pattern presets: label -> days per week (null = type your own)
+const OP_PATTERNS = [
+  { label: 'Mon–Fri (weekdays only)', days: 5 },
+  { label: 'Mon–Sat (includes Saturday)', days: 6 },
+  { label: 'Mon–Sun (7 days, includes weekends)', days: 7 },
+  { label: 'Weekends only (Sat–Sun)', days: 2 },
+  { label: 'Custom days per week', days: null }
+];
+
+const optionsHtml = (list, cur, blank) =>
+  (blank ? `<option value="">${blank}</option>` : '') +
+  list.map(v => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('');
+
+// Map any saved/typed ballast text to one of the four template names ('' if none chosen)
+function canonBallast(b) {
+  const s = (b || '').toLowerCase();
+  if (s.startsWith('led')) return BALLASTS[0];
+  if (s.startsWith('high')) return BALLASTS[1];
+  if (s.startsWith('conv')) return BALLASTS[2];
+  if (s.startsWith('unknown')) return BALLASTS[3];
+  return '';
+}
+// Chosen ballast, or one derived from the lamp technology when left on Auto
+function resolveBallast(b, tech) {
+  const c = canonBallast(b);
+  if (c) return c;
+  const t = (tech || '').toLowerCase();
+  if (t === 'led' || t === 'halogen' || t === 'incandescent') return BALLASTS[0];
+  if (t.includes('t5')) return BALLASTS[1];
+  if (t.includes('t8')) return BALLASTS[2];
+  return BALLASTS[3];
+}
+function ballastLossFor(b, tech) { return BALLAST_LOSS[BALLASTS.indexOf(resolveBallast(b, tech))]; }
+
+// Recalculate the derived fields on an entry object (mutates and returns it)
+function recalcEntry(e) {
+  const lamps = parseFloat(e.lamps) || 0;
+  const watt = parseFloat(e.watt) || 0;
+  const qty = parseFloat(e.qty) || 0;
+  const hours = parseFloat(e.hours) || 0;
+  const daysWk = parseFloat(e.daysWk);
+  const weeksYr = parseFloat(e.weeksYr);
+  if (!isNaN(daysWk)) {
+    // Days per year comes from days/week x weeks/year (weeks default to 52)
+    e.days = String(Math.round(daysWk * (isNaN(weeksYr) ? 52 : weeksYr)));
+  }
+  const days = parseFloat(e.days) || 0;
+  const perUnitKw = (lamps * watt * (1 + ballastLossFor(e.ballast, e.tech))) / 1000;
+  const load = perUnitKw * qty;
+  e.load = load.toFixed(2);
+  e.burnHours = String(Math.round(hours * days));
+  e.energy = String(Math.round(load * hours * days));
+  return e;
+}
+
+function controlLabel(e) {
+  return e.ctrlType === 'Other' ? (e.ctrlOther || 'Other') : (e.ctrlType || '');
+}
+
 function paintNewEntry() {
   const site = sites.find(s => s.id === V.siteId);
   const sv = surveys.find(s => s.id === V.surveyId);
   const e = V.entry || {};
-  
+
+  // Tidy older entries saved before these fields existed
+  if (e.controls === 'Y') e.controls = 'Yes';
+  if (e.controls === 'N') e.controls = 'No';
+  if (e.ctrlType && !CONTROL_TYPES.includes(e.ctrlType)) { e.ctrlOther = e.ctrlType; e.ctrlType = 'Other'; }
+  if (!e.weeksYr) e.weeksYr = '52';
+  if (!e.pattern) {
+    const m = OP_PATTERNS.find(p => p.days !== null && String(p.days) === String(e.daysWk));
+    e.pattern = m ? m.label : (e.daysWk || e.days ? 'Custom days per week' : OP_PATTERNS[0].label);
+    if (!e.daysWk && !e.days) e.daysWk = '5';
+  }
+  recalcEntry(e);
+
   $('crumb').textContent = V.entryIdx !== null ? 'Edit luminaire' : 'Add luminaire';
   $('bar').style.display = 'flex';
-  $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button><button class="pri" id="saveBtn">Save</button>';
-  
-  const ballastLoss = {
-    'LED driver': 0,
-    'High Frequency (electronic)': 0.08,
-    'Conventional (magnetic)': 0.2,
-    'Unknown': 0.15
-  };
-  
-  const recalc = () => {
-    const lamps = parseFloat(e.lamps) || 0;
-    const watt = parseFloat(e.watt) || 0;
-    const qty = parseFloat(e.qty) || 0;
-    const bloss = ballastLoss[e.ballast] || 0.15;
-    const hours = parseFloat(e.hours) || 0;
-    const days = parseFloat(e.days) || 0;
-    
-    const perUnit = (lamps * watt * (1 + bloss)) / 1000;
-    e.load = (perUnit * qty).toFixed(2);
-    e.burnHours = Math.round(hours * days);
-    e.energy = ((e.load * e.burnHours) / 1000).toFixed(0);
-  };
-  
+  $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button><button class="gh" id="refBtn">Reference</button><button class="pri" id="saveBtn">Save</button>';
+  $('refBtn').onclick = () => openRef('newentry');
+
+  const calcBox = (id, val) => `<div id="${id}" class="calcbox">${val || '—'}</div>`;
+
   let html = `<h2>${V.entryIdx !== null ? 'Edit' : 'Add'} Luminaire</h2>`;
   html += `
     <div class="section">
       <div class="fld ${e.zone ? 'ok' : 'rq'}">
-        <label>Zone / Area <span class="req-mark">*</span></label>
+        <label>Zone / Area</label>
         <input id="fZone" value="${esc(e.zone || '')}" placeholder="e.g. Warehouse, Office A">
       </div>
-      
+
       <div class="fld ${e.type ? 'ok' : 'rq'}">
-        <label>Type of Luminaire <span class="req-mark">*</span></label>
-        <select id="fType">
-          <option value="">Choose type</option>
-          <option ${e.type === 'Batten/strip' ? 'selected' : ''}>Batten/strip</option>
-          <option ${e.type === 'Pendant' ? 'selected' : ''}>Pendant</option>
-          <option ${e.type === 'Downlight' ? 'selected' : ''}>Downlight</option>
-          <option ${e.type === 'Spotlights' ? 'selected' : ''}>Spotlights</option>
-          <option ${e.type === 'Bollard' ? 'selected' : ''}>Bollard</option>
-          <option ${e.type === 'Wall-mounted' ? 'selected' : ''}>Wall-mounted</option>
-          <option ${e.type === 'Recessed' ? 'selected' : ''}>Recessed</option>
-          <option ${e.type === 'Other' ? 'selected' : ''}>Other</option>
-        </select>
+        <label>Type of Luminaire</label>
+        <select id="fType">${optionsHtml(LUM_TYPES, e.type, 'Choose type')}</select>
       </div>
-      
+
       <div class="fld ${e.tech ? 'ok' : 'rq'}">
-        <label>Lamp Technology <span class="req-mark">*</span></label>
-        <select id="fTech">
-          <option value="">Choose technology</option>
-          <option ${e.tech === 'LED' ? 'selected' : ''}>LED</option>
-          <option ${e.tech === 'Fluorescent T8' ? 'selected' : ''}>Fluorescent T8</option>
-          <option ${e.tech === 'Fluorescent T5' ? 'selected' : ''}>Fluorescent T5</option>
-          <option ${e.tech === 'Halogen' ? 'selected' : ''}>Halogen</option>
-          <option ${e.tech === 'Incandescent' ? 'selected' : ''}>Incandescent</option>
-          <option ${e.tech === 'Other' ? 'selected' : ''}>Other</option>
-        </select>
+        <label>Lamp Technology</label>
+        <select id="fTech">${optionsHtml(LAMP_TECHS, e.tech, 'Choose technology')}</select>
       </div>
-      
+
       <div class="fld">
         <label>Ballast / Driver Type</label>
-        <select id="fBallast">
-          <option value="">Auto-select by technology</option>
-          <option ${e.ballast === 'LED driver' ? 'selected' : ''}>LED driver (no tube)</option>
-          <option ${e.ballast === 'High Frequency (electronic)' ? 'selected' : ''}>High Frequency (electronic)</option>
-          <option ${e.ballast === 'Conventional (magnetic)' ? 'selected' : ''}>Conventional (magnetic)</option>
-          <option ${e.ballast === 'Unknown' ? 'selected' : ''}>Unknown / not recorded</option>
-        </select>
-        <div class="note">Ballast loss % is applied automatically.</div>
+        <select id="fBallast">${optionsHtml(BALLASTS, canonBallast(e.ballast), 'Auto-select by technology')}</select>
+        <div class="note">Ballast / driver loss is applied automatically (LED 0%, HF 8%, magnetic 20%, unknown 15%).</div>
       </div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
+
+      <div class="grid2">
         <div class="fld">
           <label>Lamps per Luminaire</label>
-          <input id="fLamps" type="number" value="${e.lamps || ''}" placeholder="e.g. 2">
+          <input id="fLamps" type="number" inputmode="decimal" value="${esc(e.lamps || '')}" placeholder="e.g. 2">
         </div>
         <div class="fld">
           <label>Lamp Wattage (W)</label>
-          <input id="fWatt" type="number" step="0.1" value="${e.watt || ''}" placeholder="e.g. 36">
+          <input id="fWatt" type="number" inputmode="decimal" step="0.1" value="${esc(e.watt || '')}" placeholder="e.g. 36">
         </div>
       </div>
-      
+
       <div class="fld ${e.qty ? 'ok' : 'rq'}">
-        <label>No. of Luminaires <span class="req-mark">*</span></label>
-        <input id="fQty" type="number" value="${e.qty || ''}" placeholder="e.g. 40">
+        <label>No. of Luminaires</label>
+        <input id="fQty" type="number" inputmode="numeric" value="${esc(e.qty || '')}" placeholder="e.g. 40">
       </div>
-      
+
       <div class="fld">
         <label>Measured Lux Level</label>
-        <input id="fLux" type="number" value="${e.lux || ''}" placeholder="e.g. 250">
+        <input id="fLux" type="number" inputmode="decimal" value="${esc(e.lux || '')}" placeholder="e.g. 250">
       </div>
     </div>
-    
+
     <div class="section">
       <div class="section-title">Operating Profile</div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
+
+      <div class="fld">
+        <label>Operating days (weekend options)</label>
+        <select id="fPattern">${OP_PATTERNS.map(p => `<option value="${esc(p.label)}"${p.label === e.pattern ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
+      </div>
+
+      <div class="grid2">
         <div class="fld">
-          <label>Hours per Day</label>
-          <input id="fHours" type="number" step="0.5" value="${e.hours || ''}" placeholder="e.g. 10">
+          <label>Days per Week</label>
+          <input id="fDaysWk" type="number" inputmode="decimal" step="0.5" min="0" max="7" value="${esc(e.daysWk || '')}" placeholder="e.g. 5">
         </div>
         <div class="fld">
-          <label>Days per Year</label>
-          <input id="fDays" type="number" value="${e.days || ''}" placeholder="e.g. 300">
+          <label>Weeks per Year</label>
+          <input id="fWeeksYr" type="number" inputmode="decimal" step="0.5" min="0" max="52" value="${esc(e.weeksYr || '52')}" placeholder="52">
+        </div>
+      </div>
+      <div class="note" style="margin:-0.4rem 0 0.9rem">Use fewer than 52 weeks to allow for shutdowns or bank holidays (e.g. 50).</div>
+
+      <div class="grid2">
+        <div class="fld">
+          <label>Hours per Day</label>
+          <input id="fHours" type="number" inputmode="decimal" step="0.5" value="${esc(e.hours || '')}" placeholder="e.g. 10">
+        </div>
+        <div>
+          <label>Days per Year (calculated)</label>
+          ${calcBox('cDays', e.days)}
         </div>
       </div>
     </div>
-    
+
     <div class="section">
-      <div class="section-title">Controls & Notes</div>
-      
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
-        <div class="fld">
-          <label>Controls Fitted?</label>
-          <select id="fControls">
-            <option value="">—</option>
-            <option ${e.controls === 'Y' ? 'selected' : ''}>Yes</option>
-            <option ${e.controls === 'N' ? 'selected' : ''}>No</option>
-          </select>
-        </div>
-        <div class="fld">
-          <label>Type of Control</label>
-          <input id="fCtrlType" value="${esc(e.ctrlType || '')}" placeholder="e.g. Daylight, Occupancy">
-        </div>
+      <div class="section-title">Controls &amp; Notes</div>
+
+      <div class="fld">
+        <label>Controls Fitted?</label>
+        <select id="fControls">${optionsHtml(['Yes', 'No'], e.controls, '—')}</select>
       </div>
-      
+
+      <div class="fld" id="ctrlTypeWrap" style="display:${e.controls === 'Yes' ? 'block' : 'none'}">
+        <label>Type of Control</label>
+        <select id="fCtrlType">${optionsHtml(CONTROL_TYPES, e.ctrlType, 'Choose control type')}</select>
+      </div>
+
+      <div class="fld" id="ctrlOtherWrap" style="display:${e.controls === 'Yes' && e.ctrlType === 'Other' ? 'block' : 'none'}">
+        <label>Other control type (please specify)</label>
+        <input id="fCtrlOther" value="${esc(e.ctrlOther || '')}" placeholder="Describe the control">
+      </div>
+
       <div class="fld">
         <label>Comments / Condition</label>
         <textarea id="fComments" placeholder="Age, condition, recommendations...">${esc(e.comments || '')}</textarea>
       </div>
     </div>
-    
+
     <div class="section">
       <div class="section-title">Auto-Calculated</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
+      <div class="grid2">
         <div>
           <label>Total Connected Load (kW)</label>
-          <div style="padding:0.6rem;background:rgba(46,139,87,0.1);border-radius:6px;font-weight:600">${e.load || '—'}</div>
+          ${calcBox('cLoad', e.load)}
         </div>
         <div>
           <label>Annual Burn Hours</label>
-          <div style="padding:0.6rem;background:rgba(46,139,87,0.1);border-radius:6px;font-weight:600">${e.burnHours || '—'}</div>
+          ${calcBox('cBurn', e.burnHours)}
         </div>
-        <div style="grid-column:1">
+        <div>
           <label>Annual Energy (kWh)</label>
-          <div style="padding:0.6rem;background:rgba(46,139,87,0.1);border-radius:6px;font-weight:600">${e.energy || '—'}</div>
+          ${calcBox('cEnergy', e.energy)}
         </div>
       </div>
     </div>
   `;
-  
+
   $('main').innerHTML = html;
-  
-  ['fLamps', 'fWatt', 'fQty', 'fHours', 'fDays', 'fBallast', 'fTech'].forEach(id => {
-    const el = $(id);
-    if (el) {
-      el.onchange = () => {
-        e.lamps = $('fLamps').value;
-        e.watt = $('fWatt').value;
-        e.qty = $('fQty').value;
-        e.hours = $('fHours').value;
-        e.days = $('fDays').value;
-        e.ballast = $('fBallast').value || (e.tech === 'LED' ? 'LED driver' : e.tech && /fluorescent|t5|t8/i.test(e.tech) ? 'Conventional (magnetic)' : '');
-        e.tech = $('fTech').value;
-        recalc();
-        paintNewEntry();
-      };
-    }
-  });
-  
-  $('backBtn').onclick = () => { V.page = 'viewentry'; paint(); };
-  $('saveBtn').onclick = () => {
-    e.zone = $('fZone').value.trim();
+
+  // Read every field into the entry object. Runs on every keystroke / change,
+  // and updates the calculated boxes in place (no re-render), so nothing the
+  // user has typed can be lost.
+  const sync = () => {
+    e.zone = $('fZone').value;
     e.type = $('fType').value;
     e.tech = $('fTech').value;
-    e.ballast = $('fBallast').value || (e.tech === 'LED' ? 'LED driver' : e.tech && /fluorescent|t5|t8/i.test(e.tech) ? 'Conventional (magnetic)' : '');
-    e.qty = $('fQty').value;
-    e.hours = $('fHours').value;
-    e.days = $('fDays').value;
+    e.ballast = $('fBallast').value;
     e.lamps = $('fLamps').value;
     e.watt = $('fWatt').value;
+    e.qty = $('fQty').value;
     e.lux = $('fLux').value;
+
+    e.pattern = $('fPattern').value;
+    const preset = OP_PATTERNS.find(p => p.label === e.pattern);
+    const isPreset = !!(preset && preset.days !== null);
+    if (isPreset) $('fDaysWk').value = preset.days;
+    $('fDaysWk').disabled = isPreset;
+    e.daysWk = $('fDaysWk').value;
+    e.weeksYr = $('fWeeksYr').value;
+    e.hours = $('fHours').value;
+
     e.controls = $('fControls').value;
     e.ctrlType = $('fCtrlType').value;
+    e.ctrlOther = $('fCtrlOther').value;
     e.comments = $('fComments').value;
-    
-    recalc();
-    
-    if (!e.zone || !e.type || !e.tech || !e.qty) { toast('Required fields missing'); return; }
-    
+
+    $('ctrlTypeWrap').style.display = e.controls === 'Yes' ? 'block' : 'none';
+    $('ctrlOtherWrap').style.display = e.controls === 'Yes' && e.ctrlType === 'Other' ? 'block' : 'none';
+
+    recalcEntry(e);
+    $('cDays').textContent = e.days || '—';
+    $('cLoad').textContent = e.load && parseFloat(e.load) ? e.load : '—';
+    $('cBurn').textContent = e.burnHours && parseFloat(e.burnHours) ? e.burnHours : '—';
+    $('cEnergy').textContent = e.energy && parseFloat(e.energy) ? e.energy : '—';
+
+    [['fZone', e.zone], ['fType', e.type], ['fTech', e.tech], ['fQty', e.qty]].forEach(([id, v]) => {
+      const f = $(id).closest('.fld');
+      f.classList.toggle('ok', !!(v && String(v).trim()));
+      f.classList.toggle('rq', !(v && String(v).trim()));
+    });
+  };
+
+  document.querySelectorAll('#main input, #main select, #main textarea').forEach(el => {
+    el.oninput = sync;
+    el.onchange = sync;
+  });
+  sync();
+
+  $('backBtn').onclick = () => { V.page = 'viewentry'; paint(); };
+  $('saveBtn').onclick = () => {
+    sync();
+    e.zone = e.zone.trim();
+    if (!e.zone || !e.type || !e.tech || !e.qty) { toast('Zone, type, technology and quantity are required'); return; }
+    if (e.controls !== 'Yes') { e.ctrlType = ''; e.ctrlOther = ''; }
+    if (e.ctrlType !== 'Other') e.ctrlOther = '';
+
     if (V.entryIdx !== null) {
       sv.entries[V.entryIdx] = e;
     } else {
       if (!sv.entries) sv.entries = [];
       sv.entries.push(e);
     }
-    
+
     lightingSurveysCol.doc(V.surveyId).set(sv).catch(err => toast(err.message));
     V.page = 'viewentry';
     paint();
@@ -842,7 +1083,7 @@ function paintNewEntry() {
 
 function exportCsv(sv) {
   const site = sites.find(s => s.id === V.siteId);
-  const rows = [['Site', 'Zone / Area', 'Type of Luminaire', 'Lamp Technology', 'Ballast / Driver Type', 'Lamps per Luminaire', 'Lamp Wattage (W)', 'No. of Luminaires', 'Measured Lux Level', 'Controls Fitted? (Y/N)', 'Type of Control', 'Hours per Day', 'Days per Year', 'Annual Burn Hours', 'Annual Energy (kWh)', 'Comments']];
+  const rows = [['Site', 'Zone / Area', 'Type of Luminaire', 'Lamp Technology', 'Ballast / Driver Type', 'Lamps per Luminaire', 'Lamp Wattage (W)', 'No. of Luminaires', 'Measured Lux Level', 'Controls Fitted? (Y/N)', 'Type of Control', 'Hours per Day', 'Operating Pattern', 'Days per Week', 'Weeks per Year', 'Days per Year', 'Total Load (kW)', 'Annual Burn Hours', 'Annual Energy (kWh)', 'Comments']];
   
   (sv.entries || []).forEach(e => {
     rows.push([
@@ -850,15 +1091,19 @@ function exportCsv(sv) {
       e.zone || '',
       e.type || '',
       e.tech || '',
-      e.ballast || '',
+      resolveBallast(e.ballast, e.tech),
       e.lamps || '',
       e.watt || '',
       e.qty || '',
       e.lux || '',
-      e.controls || '',
-      e.ctrlType || '',
+      e.controls === 'Yes' ? 'Y' : e.controls === 'No' ? 'N' : (e.controls || ''),
+      controlLabel(e),
       e.hours || '',
+      e.pattern || '',
+      e.daysWk || '',
+      e.weeksYr || '',
       e.days || '',
+      e.load || '',
       e.burnHours || '',
       e.energy || '',
       e.comments || ''
@@ -875,99 +1120,97 @@ function exportCsv(sv) {
 }
 
 async function fillWorkbook(sv) {
+  const site = sites.find(s => s.id === V.siteId) || {};
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.xlsx';
-  input.onchange = async e => {
-    const file = e.target.files[0];
+  input.onchange = async ev => {
+    const file = ev.target.files[0];
     if (!file) return;
-    
     try {
       toast('Reading template...');
-      const data = await file.arrayBuffer();
-      const zip = new JSZip();
-      await zip.loadAsync(data);
-      
-      const sheetXml = await zip.file('xl/worksheets/sheet1.xml').async('string');
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(sheetXml, 'text/xml');
-      
-      const stringsXml = await zip.file('xl/sharedStrings.xml').async('string');
-      const stringsDoc = parser.parseFromString(stringsXml, 'text/xml');
-      const strings = Array.from(stringsDoc.querySelectorAll('si > t')).map(el => el.textContent);
-      
-      const rows = doc.querySelectorAll('sheetData > row');
-      let dataRowStart = null;
-      
-      rows.forEach((row, idx) => {
-        const rowNum = parseInt(row.getAttribute('r'));
-        if (rowNum === 10) dataRowStart = idx;
-      });
-      
-      if (dataRowStart === null) {
-        toast('Could not find data rows in template');
-        return;
-      }
-      
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const sheetFile = zip.file('xl/worksheets/sheet1.xml');
+      if (!sheetFile) { toast('Could not find the Lighting Schedule sheet in this file'); return; }
+      const doc = new DOMParser().parseFromString(await sheetFile.async('string'), 'text/xml');
+      const NS = doc.documentElement.namespaceURI;
+
+      // Index every existing row/cell by reference so we can write by address
+      const rowMap = {}, cellMap = {};
+      Array.from(doc.getElementsByTagName('row')).forEach(r => { rowMap[r.getAttribute('r')] = r; });
+      Array.from(doc.getElementsByTagName('c')).forEach(c => { cellMap[c.getAttribute('r')] = c; });
+
+      let skipped = 0;
+      const setCell = (ref, val) => {
+        const cell = cellMap[ref];
+        if (!cell) { skipped++; return; }
+        // clear existing content (value, inline string, formula) but keep the cell style
+        Array.from(cell.childNodes).forEach(n => cell.removeChild(n));
+        cell.removeAttribute('t');
+        if (val === '' || val === null || val === undefined) return;
+        const isNum = typeof val === 'number' && isFinite(val);
+        if (isNum) {
+          cell.setAttribute('t', 'n');
+          const v = doc.createElementNS(NS, 'v'); v.textContent = String(val); cell.appendChild(v);
+        } else {
+          cell.setAttribute('t', 'inlineStr');
+          const is = doc.createElementNS(NS, 'is'); const t = doc.createElementNS(NS, 't');
+          t.textContent = String(val); is.appendChild(t); cell.appendChild(is);
+        }
+      };
+      const num = v => { const n = parseFloat(v); return isNaN(n) ? '' : n; };
+
+      // Header block
+      const custName = (cust[V.custKey] || {}).name || '';
+      setCell('B2', [custName, site.name].filter(Boolean).join(' / '));
+      setCell('B4', sv.date || '');
+
+      // Rows 10-49 are the data rows in the template (row 50 is the TOTAL row)
       const entries = sv.entries || [];
-      const entries_to_fill = entries.slice(0, 40);
-      
-      let rowIdx = dataRowStart;
-      entries_to_fill.forEach(e => {
-        if (rowIdx >= rows.length - 2) return;
-        
-        const row = rows[rowIdx];
-        const cells = row.querySelectorAll('c');
-        
-        const colMap = {
-          'A': e.zone || '',
-          'B': e.type || '',
-          'C': e.tech || '',
-          'D': e.ballast || '',
-          'E': e.lamps || '',
-          'F': e.watt || '',
-          'G': e.qty || '',
-          'H': e.lux || '',
-          'K': e.controls || '',
-          'L': e.ctrlType || '',
-          'M': e.hours || '',
-          'N': e.days || '',
-          'Q': e.comments || ''
-        };
-        
-        cells.forEach(cell => {
-          const cellRef = cell.getAttribute('r');
-          if (!cellRef) return;
-          const col = cellRef.replace(/[0-9]/g, '');
-          
-          if (colMap.hasOwnProperty(col)) {
-            const v = cell.querySelector('v');
-            if (v) cell.removeChild(v);
-            
-            const val = colMap[col];
-            if (val) {
-              const newV = doc.createElement('v');
-              newV.textContent = val;
-              cell.appendChild(newV);
-            }
-          }
-        });
-        
-        rowIdx++;
+      entries.slice(0, 40).forEach((e, i) => {
+        const r = 10 + i;
+        const ctrlYes = e.controls === 'Yes';
+        setCell('A' + r, e.zone || '');
+        setCell('B' + r, e.type || '');
+        setCell('C' + r, e.tech || '');
+        setCell('D' + r, resolveBallast(e.ballast, e.tech));   // must match the template's lookup list exactly
+        setCell('E' + r, num(e.lamps));
+        setCell('F' + r, num(e.watt));
+        setCell('G' + r, num(e.qty));
+        setCell('H' + r, num(e.lux));
+        setCell('K' + r, ctrlYes ? 'Y' : e.controls === 'No' ? 'N' : '');
+        setCell('L' + r, ctrlYes ? controlLabel(e) : (e.controls === 'No' ? 'None' : ''));
+        setCell('M' + r, num(e.hours));
+        setCell('N' + r, num(e.days));
+        setCell('Q' + r, e.comments || '');
       });
-      
-      const serializer = new XMLSerializer();
-      const newSheetXml = serializer.serializeToString(doc);
-      
-      zip.file('xl/worksheets/sheet1.xml', newSheetXml);
-      
-      const newBlob = await zip.generateAsync({ type: 'blob' });
+      // Clear the template's example row if this survey has no entries to replace it
+      if (!entries.length) ['A','B','C','D','E','F','G','H','K','L','M','N','Q'].forEach(c => setCell(c + '10', ''));
+
+      zip.file('xl/worksheets/sheet1.xml', new XMLSerializer().serializeToString(doc));
+
+      // Ask Excel to recalculate the formula columns (ballast %, load, burn hours, kWh) on open
+      const wbFile = zip.file('xl/workbook.xml');
+      if (wbFile) {
+        let wbXml = await wbFile.async('string');
+        if (/<calcPr[^>]*>/.test(wbXml)) {
+          wbXml = wbXml.replace(/<calcPr([^>]*?)\/?>/, (m, a) => '<calcPr' + a.replace(/\sfullCalcOnLoad="[^"]*"/, '') + ' fullCalcOnLoad="1"/>');
+        } else {
+          wbXml = wbXml.replace('</workbook>', '<calcPr fullCalcOnLoad="1"/></workbook>');
+        }
+        zip.file('xl/workbook.xml', wbXml);
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(newBlob);
-      a.download = `${sv.date || 'lighting'}_FILLED.xlsx`;
+      a.href = URL.createObjectURL(blob);
+      a.download = `${(site.name || 'site').replace(/[^a-z0-9]+/gi, '_')}_${sv.date || 'lighting'}_Lighting_FILLED.xlsx`;
       a.click();
-      
-      toast('Workbook filled and downloaded');
+
+      let msg = 'Workbook filled and downloaded';
+      if (entries.length > 40) msg += ` — only the first 40 of ${entries.length} luminaires fit the template`;
+      if (skipped) msg += ` (${skipped} cells not found in template)`;
+      toast(msg);
     } catch (err) {
       toast('Error: ' + err.message);
       console.error(err);
