@@ -131,14 +131,35 @@ async function loadMedia(root){for(const el of root.querySelectorAll('[data-owne
  items.filter(m=>m.kind==='doc').forEach(m=>{DOCS[m.id]={name:m.name||'document',type:m.type||(m.blob&&m.blob.type)||MIMEBYEXT[extOf(m.name)]||'',blob:m.blob||null,url:m.remote?m.url:null}});
  el.innerHTML=`<div class="thumbs">${items.filter(m=>m.kind==='photo').map(m=>`<div class="th"><img src="${src(m)}" data-view="${src(m)}"><button ${delAttr(m)}>×</button></div>`).join('')}</div>`+items.filter(m=>m.kind==='audio').map(m=>`<div class="aud"><audio controls src="${src(m)}"></audio><button class="dng" ${delAttr(m)}>Delete</button></div>`).join('')+items.filter(m=>m.kind==='doc').map(m=>`<div class="doc"><span class="di">${docIcon(m.name)}</span><div class="dn"><b>${esc(m.name||'document')}</b><span>${m.blob?fmtSize(m.blob.size)+' · saved on this device (works offline)':'in the cloud only — open once online'}</span></div><button class="gh" data-odoc="${m.id}">Open</button><button class="dng" ${delAttr(m)}>Delete</button></div>`).join('')||'';
  if(!items.length)el.innerHTML='<div class="note">Nothing added yet.</div>'}}
+let pdfLibP=null;
+function loadPdfJs(){if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
+ return pdfLibP||(pdfLibP=new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='./pdfjs/pdf.min.js';sc.onload=()=>{try{pdfjsLib.GlobalWorkerOptions.workerSrc='./pdfjs/pdf.worker.min.js';ok(pdfjsLib)}catch(e){no(e)}};sc.onerror=()=>{pdfLibP=null;no(new Error('PDF viewer files not available'))};document.head.appendChild(sc)}))}
+// Renders every page of a PDF as canvases (works on iPhone/iPad and offline - no browser PDF plug-in needed)
+async function renderPdf(d,host,st){
+ const tok=++st.tok;host.innerHTML='<div class="dvm">Loading PDF…</div>';
+ const lib=await loadPdfJs();
+ if(!st.pdf){const data=d.blob?await d.blob.arrayBuffer():await (await fetch(d.url)).arrayBuffer();st.pdf=await lib.getDocument({data}).promise}
+ if(tok!==st.tok)return;host.innerHTML='';
+ const dpr0=Math.min(window.devicePixelRatio||1,2);
+ for(let n=1;n<=st.pdf.numPages;n++){
+  if(tok!==st.tok)return;
+  const pg=await st.pdf.getPage(n),v1=pg.getViewport({scale:1}),fit=Math.max(150,host.clientWidth-12)/v1.width,sc=fit*st.zoom;
+  let dpr=dpr0;const area=v1.width*sc*v1.height*sc;if(area*dpr*dpr>12e6)dpr=Math.max(1,Math.sqrt(12e6/area));
+  const vp=pg.getViewport({scale:sc*dpr}),cv=document.createElement('canvas');
+  cv.width=Math.floor(vp.width);cv.height=Math.floor(vp.height);cv.style.cssText='display:block;margin:6px auto;background:#fff;box-shadow:0 1px 4px #0004;width:'+Math.floor(vp.width/dpr)+'px;height:'+Math.floor(vp.height/dpr)+'px';
+  host.appendChild(cv);
+  await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+ }}
 function openDoc(id){const d=DOCS[id];if(!d)return;
  const url=d.blob?URL.createObjectURL(d.blob):d.url;if(!url){toast('This document is not on this device yet — open it once while online');return}
- const e=extOf(d.name),inline=e==='pdf'||/^(txt|csv|html?|md)$/.test(e)||/^image\//.test(d.type);
- const v=document.createElement('div');v.id='dvw';
- v.innerHTML=`<div class="dvb"><button class="gh" data-dvx>← Close</button><b>${esc(d.name)}</b><button class="gh" data-dvs>Share / Save</button><a class="gh" href="${url}" target="_blank" rel="noopener" style="text-decoration:none;padding:.45rem .7rem">Open in new tab</a></div><div class="dvc">${inline?`<iframe src="${url}" title="${esc(d.name)}"></iframe>`:`<div class="dvm"><div style="font-size:3rem">${docIcon(d.name)}</div><p>${esc(d.name)}</p><p class="note">Word, Excel and PowerPoint files can’t be shown inside the app. Tap <b>Share / Save</b> (then Quick Look, Pages, Word, Files…) or <b>Open in new tab</b> to read it on your iPad — it works offline because the file is stored on this device.</p></div>`}</div>`;
- v.addEventListener('click',async ev=>{const b=ev.target.closest('button');if(!b)return;if(b.dataset.dvx!==undefined)v.remove();
-  if(b.dataset.dvs!==undefined){try{const f=new File([d.blob||await (await fetch(url)).blob()],d.name,{type:d.type||'application/octet-stream'});if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:d.name});else{const a=document.createElement('a');a.href=url;a.download=d.name;a.click()}}catch(x){if(x&&x.name!=='AbortError')toast('Could not share — try “Open in new tab”')}}});
- document.body.appendChild(v)}
+ const e=extOf(d.name),isPdf=e==='pdf'||d.type==='application/pdf',inline=!isPdf&&(/^(txt|csv|html?|md)$/.test(e)||/^image\//.test(d.type));
+ const v=document.createElement('div');v.id='dvw';const st={tok:0,zoom:1,pdf:null};
+ v.innerHTML=`<div class="dvb"><button class="gh" data-dvx>← Close</button><b>${esc(d.name)}</b>${isPdf?'<button class="gh" data-dvz="-1">−</button><button class="gh" data-dvz="1">+</button>':''}<button class="gh" data-dvs>Share / Save</button></div><div class="dvc">${inline?`<iframe src="${url}" title="${esc(d.name)}"></iframe>`:isPdf?'':`<div class="dvm"><div style="font-size:3rem">${docIcon(d.name)}</div><p>${esc(d.name)}</p><p class="note">Word, Excel and PowerPoint files can’t be shown inside the app. Tap <b>Share / Save</b> (then Quick Look, Pages, Word, Files…) to read it on your device — it works offline because the file is stored on this device.</p></div>`}</div>`;
+ v.addEventListener('click',async ev=>{const b=ev.target.closest('button');if(!b)return;if(b.dataset.dvx!==undefined){st.tok++;v.remove()}
+  if(b.dataset.dvz){st.zoom=Math.min(4,Math.max(.5,st.zoom*(b.dataset.dvz==='1'?1.3:1/1.3)));renderPdf(d,v.querySelector('.dvc'),st).catch(()=>{})}
+  if(b.dataset.dvs!==undefined){try{const f=new File([d.blob||await (await fetch(url)).blob()],d.name,{type:d.type||'application/octet-stream'});if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:d.name});else{const a=document.createElement('a');a.href=url;a.download=d.name;a.click()}}catch(x){if(x&&x.name!=='AbortError')toast('Could not share this file')}}});
+ document.body.appendChild(v);
+ if(isPdf)renderPdf(d,v.querySelector('.dvc'),st).catch(err=>{console.error('pdf view failed',err);v.querySelector('.dvc').innerHTML=`<div class="dvm"><p>Could not display this PDF inside the app (${esc(err&&err.message||'error')}).</p><p class="note">Tap <b>Share / Save</b> to open it in another app.</p></div>`})}
 function openLightbox(src){const d=document.createElement('div');d.id='lbx';d.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:40;display:flex;align-items:center;justify-content:center';d.innerHTML=`<img src="${src}" style="max-width:94vw;max-height:94vh;object-fit:contain"><button style="position:fixed;top:1rem;right:1rem;background:rgba(255,255,255,.15);color:#fff;width:2.4rem;height:2.4rem;border-radius:50%;font-size:1.3rem">&times;</button>`;d.onclick=()=>d.remove();document.body.appendChild(d)}
 
 const firebaseConfig={apiKey:"AIzaSyAamu4Ljvf4xKEHbKpGGNJnphUImNjdUiY",authDomain:"esos-site-data-collection.firebaseapp.com",projectId:"esos-site-data-collection",storageBucket:"esos-site-data-collection.firebasestorage.app",messagingSenderId:"99215176778",appId:"1:99215176778:web:7bf7668890f290a618e2b3"};
