@@ -52,7 +52,7 @@ label b{color:var(--req);font-weight:600;font-size:.72rem;margin-left:.3rem}
 .th{position:relative}.th img{width:5.2rem;height:5.2rem;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
 .th button{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border-radius:50%;width:1.4rem;height:1.4rem;font-size:.8rem;padding:0}
 .doc{display:flex;gap:.5rem;align-items:center;margin:.35rem 0;padding:.4rem .5rem;border:1px solid var(--bd,#d0d5dd);border-radius:10px;width:100%}.doc .di{font-size:1.5rem}.doc .dn{flex:1;min-width:0}.doc .dn b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}.doc .dn span{font-size:.75rem;color:var(--soft)}
-#dvw{position:fixed;inset:0;z-index:50;background:var(--paper,#fff);color:var(--ink,#111);display:flex;flex-direction:column;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}#dvw .gh{color:var(--ink,#111);background:var(--card,#fff);border:1px solid var(--soft,#888)}#dvw .gh:disabled{opacity:.35}#dvw .dvc{background:var(--card,#eee)}#dvw canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}#dvw .dvb{display:flex;gap:.5rem;align-items:center;padding:.5rem .7rem;border-bottom:1px solid #8884}#dvw .dvb b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#dvw .dvc{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}#dvw iframe{width:100%;height:100%;border:0}#dvw .dvb.tb{flex-wrap:wrap;gap:.35rem}#dvw .on{outline:2px solid #2e8b57;background:rgba(46,139,87,.28)!important}#dvw .cdot{width:1.7rem;height:1.7rem;border-radius:50%;border:2px solid #8886;padding:0}#dvw .pgw{position:relative;margin:6px auto}#dvw .pgw canvas{display:block}#dvw .ink{position:absolute;left:0;top:0;pointer-events:none}#dvw.drawing .ink{pointer-events:auto;touch-action:none;cursor:crosshair}#dvw.drawing .dvc{touch-action:none}
+#dvw{position:fixed;inset:0;z-index:50;background:var(--paper,#fff);color:var(--ink,#111);display:flex;flex-direction:column;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}#dvw .gh{color:var(--ink,#111);background:var(--card,#fff);border:1px solid var(--soft,#888)}#dvw .gh:disabled{opacity:.35}#dvw .dvc{background:var(--card,#eee)}#dvw canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}#dvw .dvb{display:flex;gap:.5rem;align-items:center;padding:.5rem .7rem;border-bottom:1px solid #8884}#dvw .dvb b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#dvw .dvc{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}#dvw iframe{width:100%;height:100%;border:0}#dvw .dvb.tb{flex-wrap:wrap;gap:.35rem}#dvw .on{outline:2px solid #2e8b57;background:rgba(46,139,87,.28)!important}#dvw .ub{display:inline-flex;align-items:center;gap:.3rem;font-weight:600}#dvw .wset{display:inline-flex;gap:.2rem;align-items:center;padding:0 .2rem}#dvw .wdot{width:2.3rem;height:2.3rem;border-radius:.6rem;border:1px solid var(--soft,#888);background:var(--card,#fff);display:inline-flex;align-items:center;justify-content:center;padding:0}#dvw .wdot i{display:block;border-radius:50%;background:var(--ink,#111)}#dvw .cdot{width:1.7rem;height:1.7rem;border-radius:50%;border:2px solid #8886;padding:0}#dvw .pgw{position:relative;margin:6px auto}#dvw .pgw canvas{display:block}#dvw .ink{position:absolute;left:0;top:0;pointer-events:none}#dvw.drawing .ink{pointer-events:auto;touch-action:none;cursor:crosshair}#dvw.drawing .dvc{touch-action:none}
 #dvw .dvm{padding:2rem 1.2rem;text-align:center}
 .aud{display:flex;gap:.4rem;align-items:center;margin:.3rem 0;width:100%}.aud audio{flex:1;height:2.2rem}
 .sheet-b{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:20;display:none}.sheet-b.o{display:block}
@@ -138,10 +138,17 @@ let pdfLibP=null;
 function loadPdfJs(){if(window.pdfjsLib)return Promise.resolve(window.pdfjsLib);
  return pdfLibP||(pdfLibP=new Promise((ok,no)=>{const sc=document.createElement('script');sc.src='./pdfjs/pdf.min.js';sc.onload=()=>{try{pdfjsLib.GlobalWorkerOptions.workerSrc='./pdfjs/pdf.worker.min.js';ok(pdfjsLib)}catch(e){no(e)}};sc.onerror=()=>{pdfLibP=null;no(new Error('PDF viewer files not available'))};document.head.appendChild(sc)}))}
 // ---- Pencil / pen markup on PDFs. Strokes are stored per page as fractions of the page size: {c:colour,w:width,t:'pen'|'hl',p:[x,y,pressure,...]}
-function paintStroke(ctx,s,W,H){const p=s.p;if(!p||p.length<3)return;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.c;
- if(s.t==='hl'){ctx.globalAlpha=.35;ctx.lineWidth=s.w*W;ctx.beginPath();ctx.moveTo(p[0]*W,p[1]*H);for(let i=3;i<p.length;i+=3)ctx.lineTo(p[i]*W,p[i+1]*H);if(p.length===3)ctx.lineTo(p[0]*W+.1,p[1]*H);ctx.stroke()}
- else{if(p.length===3){ctx.fillStyle=s.c;ctx.beginPath();ctx.arc(p[0]*W,p[1]*H,s.w*W*(.5+p[2])/2,0,7);ctx.fill()}
-  for(let i=3;i<p.length;i+=3){ctx.lineWidth=s.w*W*(.5+p[i+2]);ctx.beginPath();ctx.moveTo(p[i-3]*W,p[i-2]*H);ctx.lineTo(p[i]*W,p[i+1]*H);ctx.stroke()}}
+const PENW=[.0016,.0028,.0045,.007,.011],HLW=[.008,.012,.018,.026,.036];
+// One smoothed pen segment: a quadratic curve through the midpoints of neighbouring samples (i = index of the control point)
+function penSeg(ctx,s,i,W,H){const p=s.p,n=p.length/3,k=i*3;if(i<1||i>n-1)return;
+ const sx=i===1?p[0]:(p[k-3]+p[k])/2,sy=i===1?p[1]:(p[k-2]+p[k+1])/2,ex=i===n-1?p[k]:(p[k]+p[k+3])/2,ey=i===n-1?p[k+1]:(p[k+1]+p[k+4])/2;
+ ctx.lineWidth=s.w*W*(.45+p[k+2]*1.1);ctx.beginPath();ctx.moveTo(sx*W,sy*H);ctx.quadraticCurveTo(p[k]*W,p[k+1]*H,ex*W,ey*H);ctx.stroke()}
+function paintStroke(ctx,s,W,H){const p=s.p;if(!p||p.length<3)return;ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=s.c;const n=p.length/3;
+ if(s.t==='hl'){ctx.globalAlpha=.35;ctx.lineWidth=s.w*W;ctx.beginPath();ctx.moveTo(p[0]*W,p[1]*H);
+  if(n===1)ctx.lineTo(p[0]*W+.1,p[1]*H);else{for(let i=1;i<n-1;i++){const k=i*3;ctx.quadraticCurveTo(p[k]*W,p[k+1]*H,(p[k]+p[k+3])/2*W,(p[k+1]+p[k+4])/2*H)}ctx.lineTo(p[(n-1)*3]*W,p[(n-1)*3+1]*H)}ctx.stroke()}
+ else{if(n===1){ctx.fillStyle=s.c;ctx.beginPath();ctx.arc(p[0]*W,p[1]*H,s.w*W*(.45+p[2]*1.1)/2,0,7);ctx.fill()}
+  else if(n===2){ctx.lineWidth=s.w*W*(.45+p[5]*1.1);ctx.beginPath();ctx.moveTo(p[0]*W,p[1]*H);ctx.lineTo(p[3]*W,p[4]*H);ctx.stroke()}
+  else for(let i=1;i<n;i++)penSeg(ctx,s,i,W,H)}
  ctx.restore()}
 function paintPage(cv,strokes,W,H){const c=cv.getContext('2d');c.clearRect(0,0,cv.width,cv.height);(strokes||[]).forEach(x=>paintStroke(c,x,W||cv.width,H||cv.height))}
 function hasInk(ink){return !!ink&&Object.values(ink).some(a=>a&&a.length)}
@@ -156,7 +163,7 @@ function attachInk(d,st,ov,n,host){
  const killTouch=e=>{if(st.draw)e.preventDefault()};
  ['touchstart','touchmove','touchend'].forEach(t=>ov.addEventListener(t,killTouch,{passive:false}));
  ['selectstart','contextmenu','dragstart','gesturestart'].forEach(t=>ov.addEventListener(t,e=>{if(st.draw)e.preventDefault()}));
- let activeId=null,raf=0;
+ let activeId=null,raf=0,sm=null;
  const accepts=e=>e.pointerType==='pen'||e.pointerType==='mouse'||(e.pointerType==='touch'&&st.finger&&!st.penSeen);
  const redrawLive=()=>{raf=0;if(!cur)return;paintPage(ov,strokes());paintStroke(ov.getContext('2d'),cur,ov.width,ov.height)};
  ov.addEventListener('pointerdown',e=>{if(!st.draw)return;if(e.pointerType==='pen')st.penSeen=true;
@@ -164,15 +171,19 @@ function attachInk(d,st,ov,n,host){
   if(activeId!==null){ // a second pointer arrived: a pen always wins over a palm/finger that started first
    if(e.pointerType==='pen'){cur=null;erased=null;activeId=null;paintPage(ov,strokes())}else{e.preventDefault();return}}
   e.preventDefault();activeId=e.pointerId;try{ov.setPointerCapture(e.pointerId)}catch(x){}const [x,y]=pos(e),pr=e.pressure>0?e.pressure:.5;
-  if(st.tool==='erase'){erased=[];eraseAt(x,y)}else{cur={c:st.tool==='hl'?(st.color==='#111111'?'#ffd400':st.color):st.color,w:st.tool==='hl'?.014:.0024,t:st.tool==='hl'?'hl':'pen',p:[r4(x),r4(y),Math.round(pr*100)/100]};paintStroke(ov.getContext('2d'),cur,ov.width,ov.height)}});
+  if(st.tool==='erase'){erased=[];eraseAt(x,y)}else{sm={x,y,pr};cur={c:st.tool==='hl'?(st.color==='#111111'?'#ffd400':st.color):st.color,w:(st.tool==='hl'?HLW:PENW)[st.wi],t:st.tool==='hl'?'hl':'pen',p:[r4(x),r4(y),Math.round(pr*100)/100]};paintStroke(ov.getContext('2d'),cur,ov.width,ov.height)}});
  function eraseAt(x,y){const W=ov.width,H=ov.height,rad=.025,arr=strokes();let hit=false;
   for(let i=arr.length-1;i>=0;i--){const p=arr[i].p;for(let k=0;k<p.length;k+=3){if(Math.hypot((p[k]-x)*W,(p[k+1]-y)*H)<rad*W){erased.push({i,s:arr[i]});arr.splice(i,1);hit=true;break}}}
   if(hit)paintPage(ov,arr)}
  ov.addEventListener('pointermove',e=>{if(!st.draw||e.pointerId!==activeId)return;e.preventDefault();
   if(erased){const [x,y]=pos(e);eraseAt(x,y);return}
   if(!cur)return;const evs=e.getCoalescedEvents?e.getCoalescedEvents():[],c=ov.getContext('2d');
-  for(const ce of (evs.length?evs:[e])){const [x,y]=pos(ce),pr=ce.pressure>0?ce.pressure:.5,p=cur.p,n0=p.length;p.push(r4(x),r4(y),Math.round(pr*100)/100);
-   if(cur.t!=='hl')paintStroke(c,{c:cur.c,w:cur.w,t:'pen',p:[p[n0-3],p[n0-2],p[n0-1],p[n0],p[n0+1],p[n0+2]]},ov.width,ov.height)}
+  for(const ce of (evs.length?evs:[e])){const [rx,ry]=pos(ce),rp=ce.pressure>0?ce.pressure:.5;
+   // light low-pass filter removes pen jitter; points closer than ~0.4px are skipped
+   sm.x+=(rx-sm.x)*.55;sm.y+=(ry-sm.y)*.55;sm.pr+=(rp-sm.pr)*.4;
+   const p=cur.p,n0=p.length,W=ov.width,H=ov.height;if(Math.hypot((sm.x-p[n0-3])*W,(sm.y-p[n0-2])*H)<.4)continue;
+   p.push(r4(sm.x),r4(sm.y),Math.round(sm.pr*100)/100);
+   if(cur.t!=='hl'&&p.length>=9){c.save();c.lineCap='round';c.lineJoin='round';c.strokeStyle=cur.c;penSeg(c,cur,p.length/3-2,W,H);c.restore()}else if(cur.t!=='hl'&&p.length===6){c.save();c.lineCap='round';c.strokeStyle=cur.c;c.lineWidth=cur.w*W*(.45+p[5]*1.1);c.beginPath();c.moveTo(p[0]*W,p[1]*H);c.lineTo(p[3]*W,p[4]*H);c.stroke();c.restore()}}
   if(cur.t==='hl'&&!raf)raf=requestAnimationFrame(redrawLive)});
  const end=e=>{if(e.pointerId!==activeId)return;activeId=null;if(raf){cancelAnimationFrame(raf);raf=0}
   if(cur){if(cur.p.length>=3){strokes().push(cur);st.undo.push({k:'add',n,s:cur});st.redo=[];queueInk(d,st);syncUndo(st)}cur=null;paintPage(ov,strokes())}
@@ -222,9 +233,9 @@ async function renderPdf(d,host,st){
 function openDoc(id){const d=DOCS[id];if(!d)return;
  const url=d.blob?URL.createObjectURL(d.blob):d.url;if(!url){toast('This document is not on this device yet — open it once while online');return}
  const e=extOf(d.name),isPdf=e==='pdf'||d.type==='application/pdf',inline=!isPdf&&(/^(txt|csv|html?|md)$/.test(e)||/^image\//.test(d.type));
- const v=document.createElement('div');v.id='dvw';const st={tok:0,zoom:1,pdf:null,ink:JSON.parse(JSON.stringify(d.ink||{})),tool:'pen',color:'#111111',draw:false,undo:[],redo:[],canInk:isPdf&&!!d.blob,penSeen:false,sv:null,finger:!/iPad/.test(navigator.userAgent)&&!(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)};
+ const v=document.createElement('div');v.id='dvw';const st={tok:0,zoom:1,pdf:null,ink:JSON.parse(JSON.stringify(d.ink||{})),tool:'pen',wi:1,color:'#111111',draw:false,undo:[],redo:[],canInk:isPdf&&!!d.blob,penSeen:false,sv:null,finger:!/iPad/.test(navigator.userAgent)&&!(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)};
  const cols=['#111111','#d92b2b','#1f5fd6','#1f9d55'];
- const tools=st.canInk?`<div class="dvb tb"><button class="gh" data-dvd>✏️ Draw</button><button class="gh${st.finger?' on':''}" data-dvf title="Allow drawing with a finger as well as the Pencil">☝️ Finger</button><button class="gh on" data-dvt="pen">Pen</button><button class="gh" data-dvt="hl">Highlighter</button><button class="gh" data-dvt="erase">Eraser</button>${cols.map((c,i)=>`<button class="cdot${i?'':' on'}" data-dvc="${c}" style="background:${c}" aria-label="colour"></button>`).join('')}<button class="gh" data-dvu="undo" disabled>↶</button><button class="gh" data-dvu="redo" disabled>↷</button><button class="gh" data-dvp>💾 Save annotated PDF</button></div>`:(isPdf?'<div class="dvb"><span class="note">Marking up needs a copy saved on this device — open this PDF once while online.</span></div>':'');
+ const tools=st.canInk?`<div class="dvb tb"><button class="gh" data-dvd>✏️ Draw</button><button class="gh${st.finger?' on':''}" data-dvf title="Allow drawing with a finger as well as the Pencil">☝️ Finger</button><button class="gh on" data-dvt="pen">Pen</button><button class="gh" data-dvt="hl">Highlighter</button><button class="gh" data-dvt="erase">Eraser</button>${cols.map((c,i)=>`<button class="cdot${i?'':' on'}" data-dvc="${c}" style="background:${c}" aria-label="colour"></button>`).join('')}<span class="wset">${PENW.map((_,i)=>`<button class="wdot${i===1?' on':''}" data-dvw="${i}" aria-label="Line thickness ${i+1}"><i style="width:${4+i*3.5}px;height:${4+i*3.5}px"></i></button>`).join('')}</span><button class="gh ub" data-dvu="undo" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg> Undo</button><button class="gh ub" data-dvu="redo" disabled><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg> Redo</button><button class="gh" data-dvp>💾 Save annotated PDF</button></div>`:(isPdf?'<div class="dvb"><span class="note">Marking up needs a copy saved on this device — open this PDF once while online.</span></div>':'');
  v.innerHTML=`<div class="dvb"><button class="gh" data-dvx>← Close</button><b>${esc(d.name)}</b>${isPdf?'<button class="gh" data-dvz="-1">−</button><button class="gh" data-dvz="1">+</button>':''}<button class="gh" data-dvs>Share / Save</button></div>${tools}<div class="dvc">${inline?`<iframe src="${url}" title="${esc(d.name)}"></iframe>`:isPdf?'':`<div class="dvm"><div style="font-size:3rem">${docIcon(d.name)}</div><p>${esc(d.name)}</p><p class="note">Word, Excel and PowerPoint files can’t be shown inside the app. Tap <b>Share / Save</b> (then Quick Look, Pages, Word, Files…) to read it on your device — it works offline because the file is stored on this device.</p></div>`}</div>`;
  const share=async(blob,name,type)=>{const f=new File([blob],name,{type});if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:name});else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click()}};
  v.addEventListener('click',async ev=>{const b=ev.target.closest('button');if(!b)return;
@@ -233,6 +244,7 @@ function openDoc(id){const d=DOCS[id];if(!d)return;
   if(b.dataset.dvd!==undefined){st.draw=!st.draw;v.classList.toggle('drawing',st.draw);b.classList.toggle('on',st.draw);b.textContent=st.draw?'✏️ Drawing — tap to scroll':'✏️ Draw'}
   if(b.dataset.dvf!==undefined){st.finger=!st.finger;b.classList.toggle('on',st.finger)}
   if(b.dataset.dvt){st.tool=b.dataset.dvt;v.querySelectorAll('[data-dvt]').forEach(x=>x.classList.toggle('on',x===b));if(!st.draw){st.draw=true;v.classList.add('drawing');const db=v.querySelector('[data-dvd]');db.classList.add('on');db.textContent='✏️ Drawing — tap to scroll'}}
+  if(b.dataset.dvw!==undefined){st.wi=+b.dataset.dvw;v.querySelectorAll('[data-dvw]').forEach(x=>x.classList.toggle('on',x===b))}
   if(b.dataset.dvc){st.color=b.dataset.dvc;v.querySelectorAll('[data-dvc]').forEach(x=>x.classList.toggle('on',x===b))}
   if(b.dataset.dvu)undoRedo(d,st,v,b.dataset.dvu==='redo');
   if(b.dataset.dvp!==undefined){try{toast('Building annotated PDF…');const out=await buildAnnotatedPdf(d.blob,st.ink,st.pdf);await share(out,d.name.replace(/\.pdf$/i,'')+'_annotated.pdf','application/pdf')}catch(x){if(x&&x.name!=='AbortError'){console.error(x);toast('Could not build the annotated PDF — '+(x&&x.message||'see console'))}}}
