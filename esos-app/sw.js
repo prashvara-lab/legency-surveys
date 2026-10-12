@@ -1,5 +1,5 @@
-const C='legency-esos-v33';
-const A=['./','./index.html','./manifest.webmanifest','./app-icon-192.png','./app-icon-512.png','./app-icon-maskable-512.png','./apple-touch-icon-v2.png','./favicon-32.png','./favicon-48.png','./logo.png','./pdfjs/pdf.min.js','./pdfjs/pdf.worker.min.js'];
+const C='legency-esos-v34';
+const A=['./','./index.html','./manifest.webmanifest','./legency-icon-192.png','./legency-icon-512.png','./legency-icon-maskable-512.png','./legency-apple-180.png','./legency-fav-32.png','./legency-fav-48.png','./logo.png','./pdfjs/pdf.min.js','./pdfjs/pdf.worker.min.js'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(A)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))));self.clients.claim()});
 self.addEventListener('fetch',e=>{
