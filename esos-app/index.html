@@ -52,7 +52,7 @@ label b{color:var(--req);font-weight:600;font-size:.72rem;margin-left:.3rem}
 .th{position:relative}.th img{width:5.2rem;height:5.2rem;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
 .th button{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border-radius:50%;width:1.4rem;height:1.4rem;font-size:.8rem;padding:0}
 .doc{display:flex;gap:.5rem;align-items:center;margin:.35rem 0;padding:.4rem .5rem;border:1px solid var(--bd,#d0d5dd);border-radius:10px;width:100%}.doc .di{font-size:1.5rem}.doc .dn{flex:1;min-width:0}.doc .dn b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem}.doc .dn span{font-size:.75rem;color:var(--soft)}
-#dvw{position:fixed;inset:0;z-index:50;background:var(--bg,#fff);display:flex;flex-direction:column}#dvw .dvb{display:flex;gap:.5rem;align-items:center;padding:.5rem .7rem;border-bottom:1px solid #8884}#dvw .dvb b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#dvw .dvc{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}#dvw iframe{width:100%;height:100%;border:0}#dvw .dvb.tb{flex-wrap:wrap;gap:.35rem}#dvw .on{outline:2px solid #2e8b57;background:rgba(46,139,87,.22)}#dvw .cdot{width:1.7rem;height:1.7rem;border-radius:50%;border:2px solid #8886;padding:0}#dvw .pgw{position:relative;margin:6px auto}#dvw .pgw canvas{display:block}#dvw .ink{position:absolute;left:0;top:0;pointer-events:none}#dvw.drawing .ink{pointer-events:auto;touch-action:none;cursor:crosshair}#dvw.drawing .dvc{touch-action:none}
+#dvw{position:fixed;inset:0;z-index:50;background:var(--paper,#fff);color:var(--ink,#111);display:flex;flex-direction:column;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}#dvw .gh{color:var(--ink,#111);background:var(--card,#fff);border:1px solid var(--soft,#888)}#dvw .gh:disabled{opacity:.35}#dvw .dvc{background:var(--card,#eee)}#dvw canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}#dvw .dvb{display:flex;gap:.5rem;align-items:center;padding:.5rem .7rem;border-bottom:1px solid #8884}#dvw .dvb b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#dvw .dvc{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}#dvw iframe{width:100%;height:100%;border:0}#dvw .dvb.tb{flex-wrap:wrap;gap:.35rem}#dvw .on{outline:2px solid #2e8b57;background:rgba(46,139,87,.28)!important}#dvw .cdot{width:1.7rem;height:1.7rem;border-radius:50%;border:2px solid #8886;padding:0}#dvw .pgw{position:relative;margin:6px auto}#dvw .pgw canvas{display:block}#dvw .ink{position:absolute;left:0;top:0;pointer-events:none}#dvw.drawing .ink{pointer-events:auto;touch-action:none;cursor:crosshair}#dvw.drawing .dvc{touch-action:none}
 #dvw .dvm{padding:2rem 1.2rem;text-align:center}
 .aud{display:flex;gap:.4rem;align-items:center;margin:.3rem 0;width:100%}.aud audio{flex:1;height:2.2rem}
 .sheet-b{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:20;display:none}.sheet-b.o{display:block}
@@ -153,18 +153,29 @@ function attachInk(d,st,ov,n,host){
  const strokes=()=>(st.ink[n]=st.ink[n]||[]);let cur=null,erased=null;
  const pos=e=>{const r=ov.getBoundingClientRect();return [Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))]};
  const r4=v=>Math.round(v*10000)/10000;
- ov.addEventListener('pointerdown',e=>{if(!st.draw)return;if(e.pointerType==='pen')st.penSeen=true;else if(e.pointerType==='touch'&&st.penSeen)return;
-  e.preventDefault();try{ov.setPointerCapture(e.pointerId)}catch(x){}const [x,y]=pos(e),pr=e.pressure>0?e.pressure:.5;
-  if(st.tool==='erase'){erased=[];eraseAt(x,y)}else{cur={c:st.tool==='hl'?(st.color==='#111111'?'#ffd400':st.color):st.color,w:st.tool==='hl'?.014:.0024,t:st.tool==='hl'?'hl':'pen',p:[r4(x),r4(y),Math.round(pr*100)/100]};const c=ov.getContext('2d');paintStroke(c,cur,ov.width,ov.height)}});
+ const killTouch=e=>{if(st.draw)e.preventDefault()};
+ ['touchstart','touchmove','touchend'].forEach(t=>ov.addEventListener(t,killTouch,{passive:false}));
+ ['selectstart','contextmenu','dragstart','gesturestart'].forEach(t=>ov.addEventListener(t,e=>{if(st.draw)e.preventDefault()}));
+ let activeId=null,raf=0;
+ const accepts=e=>e.pointerType==='pen'||e.pointerType==='mouse'||(e.pointerType==='touch'&&st.finger&&!st.penSeen);
+ const redrawLive=()=>{raf=0;if(!cur)return;paintPage(ov,strokes());paintStroke(ov.getContext('2d'),cur,ov.width,ov.height)};
+ ov.addEventListener('pointerdown',e=>{if(!st.draw)return;if(e.pointerType==='pen')st.penSeen=true;
+  if(!accepts(e)){e.preventDefault();return}
+  if(activeId!==null){ // a second pointer arrived: a pen always wins over a palm/finger that started first
+   if(e.pointerType==='pen'){cur=null;erased=null;activeId=null;paintPage(ov,strokes())}else{e.preventDefault();return}}
+  e.preventDefault();activeId=e.pointerId;try{ov.setPointerCapture(e.pointerId)}catch(x){}const [x,y]=pos(e),pr=e.pressure>0?e.pressure:.5;
+  if(st.tool==='erase'){erased=[];eraseAt(x,y)}else{cur={c:st.tool==='hl'?(st.color==='#111111'?'#ffd400':st.color):st.color,w:st.tool==='hl'?.014:.0024,t:st.tool==='hl'?'hl':'pen',p:[r4(x),r4(y),Math.round(pr*100)/100]};paintStroke(ov.getContext('2d'),cur,ov.width,ov.height)}});
  function eraseAt(x,y){const W=ov.width,H=ov.height,rad=.025,arr=strokes();let hit=false;
   for(let i=arr.length-1;i>=0;i--){const p=arr[i].p;for(let k=0;k<p.length;k+=3){if(Math.hypot((p[k]-x)*W,(p[k+1]-y)*H)<rad*W){erased.push({i,s:arr[i]});arr.splice(i,1);hit=true;break}}}
   if(hit)paintPage(ov,arr)}
- ov.addEventListener('pointermove',e=>{if(!st.draw)return;if(e.pointerType==='touch'&&st.penSeen)return;
-  if(erased){e.preventDefault();const [x,y]=pos(e);eraseAt(x,y);return}
-  if(!cur)return;e.preventDefault();const evs=e.getCoalescedEvents?e.getCoalescedEvents():[e],c=ov.getContext('2d');
+ ov.addEventListener('pointermove',e=>{if(!st.draw||e.pointerId!==activeId)return;e.preventDefault();
+  if(erased){const [x,y]=pos(e);eraseAt(x,y);return}
+  if(!cur)return;const evs=e.getCoalescedEvents?e.getCoalescedEvents():[],c=ov.getContext('2d');
   for(const ce of (evs.length?evs:[e])){const [x,y]=pos(ce),pr=ce.pressure>0?ce.pressure:.5,p=cur.p,n0=p.length;p.push(r4(x),r4(y),Math.round(pr*100)/100);
-   if(cur.t==='hl'){paintPage(ov,strokes());paintStroke(c,cur,ov.width,ov.height)}else paintStroke(c,{c:cur.c,w:cur.w,t:'pen',p:[p[n0-3],p[n0-2],p[n0-1],p[n0],p[n0+1],p[n0+2]]},ov.width,ov.height)}});
- const end=e=>{if(cur){strokes().push(cur);st.undo.push({k:'add',n,s:cur});st.redo=[];cur=null;queueInk(d,st);syncUndo(st)}
+   if(cur.t!=='hl')paintStroke(c,{c:cur.c,w:cur.w,t:'pen',p:[p[n0-3],p[n0-2],p[n0-1],p[n0],p[n0+1],p[n0+2]]},ov.width,ov.height)}
+  if(cur.t==='hl'&&!raf)raf=requestAnimationFrame(redrawLive)});
+ const end=e=>{if(e.pointerId!==activeId)return;activeId=null;if(raf){cancelAnimationFrame(raf);raf=0}
+  if(cur){if(cur.p.length>=3){strokes().push(cur);st.undo.push({k:'add',n,s:cur});st.redo=[];queueInk(d,st);syncUndo(st)}cur=null;paintPage(ov,strokes())}
   if(erased){if(erased.length){st.undo.push({k:'del',n,items:erased});st.redo=[];queueInk(d,st);syncUndo(st)}erased=null}};
  ov.addEventListener('pointerup',end);ov.addEventListener('pointercancel',end);
  ov._repaint=()=>paintPage(ov,st.ink[n])}
@@ -211,15 +222,16 @@ async function renderPdf(d,host,st){
 function openDoc(id){const d=DOCS[id];if(!d)return;
  const url=d.blob?URL.createObjectURL(d.blob):d.url;if(!url){toast('This document is not on this device yet — open it once while online');return}
  const e=extOf(d.name),isPdf=e==='pdf'||d.type==='application/pdf',inline=!isPdf&&(/^(txt|csv|html?|md)$/.test(e)||/^image\//.test(d.type));
- const v=document.createElement('div');v.id='dvw';const st={tok:0,zoom:1,pdf:null,ink:JSON.parse(JSON.stringify(d.ink||{})),tool:'pen',color:'#111111',draw:false,undo:[],redo:[],canInk:isPdf&&!!d.blob,penSeen:false,sv:null};
+ const v=document.createElement('div');v.id='dvw';const st={tok:0,zoom:1,pdf:null,ink:JSON.parse(JSON.stringify(d.ink||{})),tool:'pen',color:'#111111',draw:false,undo:[],redo:[],canInk:isPdf&&!!d.blob,penSeen:false,sv:null,finger:!/iPad/.test(navigator.userAgent)&&!(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)};
  const cols=['#111111','#d92b2b','#1f5fd6','#1f9d55'];
- const tools=st.canInk?`<div class="dvb tb"><button class="gh" data-dvd>✏️ Draw</button><button class="gh on" data-dvt="pen">Pen</button><button class="gh" data-dvt="hl">Highlighter</button><button class="gh" data-dvt="erase">Eraser</button>${cols.map((c,i)=>`<button class="cdot${i?'':' on'}" data-dvc="${c}" style="background:${c}" aria-label="colour"></button>`).join('')}<button class="gh" data-dvu="undo" disabled>↶</button><button class="gh" data-dvu="redo" disabled>↷</button><button class="gh" data-dvp>💾 Save annotated PDF</button></div>`:(isPdf?'<div class="dvb"><span class="note">Marking up needs a copy saved on this device — open this PDF once while online.</span></div>':'');
+ const tools=st.canInk?`<div class="dvb tb"><button class="gh" data-dvd>✏️ Draw</button><button class="gh${st.finger?' on':''}" data-dvf title="Allow drawing with a finger as well as the Pencil">☝️ Finger</button><button class="gh on" data-dvt="pen">Pen</button><button class="gh" data-dvt="hl">Highlighter</button><button class="gh" data-dvt="erase">Eraser</button>${cols.map((c,i)=>`<button class="cdot${i?'':' on'}" data-dvc="${c}" style="background:${c}" aria-label="colour"></button>`).join('')}<button class="gh" data-dvu="undo" disabled>↶</button><button class="gh" data-dvu="redo" disabled>↷</button><button class="gh" data-dvp>💾 Save annotated PDF</button></div>`:(isPdf?'<div class="dvb"><span class="note">Marking up needs a copy saved on this device — open this PDF once while online.</span></div>':'');
  v.innerHTML=`<div class="dvb"><button class="gh" data-dvx>← Close</button><b>${esc(d.name)}</b>${isPdf?'<button class="gh" data-dvz="-1">−</button><button class="gh" data-dvz="1">+</button>':''}<button class="gh" data-dvs>Share / Save</button></div>${tools}<div class="dvc">${inline?`<iframe src="${url}" title="${esc(d.name)}"></iframe>`:isPdf?'':`<div class="dvm"><div style="font-size:3rem">${docIcon(d.name)}</div><p>${esc(d.name)}</p><p class="note">Word, Excel and PowerPoint files can’t be shown inside the app. Tap <b>Share / Save</b> (then Quick Look, Pages, Word, Files…) to read it on your device — it works offline because the file is stored on this device.</p></div>`}</div>`;
  const share=async(blob,name,type)=>{const f=new File([blob],name,{type});if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:name});else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click()}};
  v.addEventListener('click',async ev=>{const b=ev.target.closest('button');if(!b)return;
   if(b.dataset.dvx!==undefined){st.tok++;if(st.canInk)flushInk(d,st);v.remove()}
   if(b.dataset.dvz){st.zoom=Math.min(4,Math.max(.5,st.zoom*(b.dataset.dvz==='1'?1.3:1/1.3)));renderPdf(d,v.querySelector('.dvc'),st).then(()=>syncUndo(st)).catch(()=>{})}
   if(b.dataset.dvd!==undefined){st.draw=!st.draw;v.classList.toggle('drawing',st.draw);b.classList.toggle('on',st.draw);b.textContent=st.draw?'✏️ Drawing — tap to scroll':'✏️ Draw'}
+  if(b.dataset.dvf!==undefined){st.finger=!st.finger;b.classList.toggle('on',st.finger)}
   if(b.dataset.dvt){st.tool=b.dataset.dvt;v.querySelectorAll('[data-dvt]').forEach(x=>x.classList.toggle('on',x===b));if(!st.draw){st.draw=true;v.classList.add('drawing');const db=v.querySelector('[data-dvd]');db.classList.add('on');db.textContent='✏️ Drawing — tap to scroll'}}
   if(b.dataset.dvc){st.color=b.dataset.dvc;v.querySelectorAll('[data-dvc]').forEach(x=>x.classList.toggle('on',x===b))}
   if(b.dataset.dvu)undoRedo(d,st,v,b.dataset.dvu==='redo');
