@@ -539,7 +539,7 @@ function paint(){const sv=D[V.id];$('bar').style.display='flex';
   $('custNotes').oninput=()=>{rec.notes=$('custNotes').value;saveCust(key)};
   loadMedia($('main'));return}
  if(V.s==='sv'){$('crumb').innerHTML='<a id="bk">← All surveys</a> / '+esc(gv('general',sv.gen,'Site Name'));$('bk').onclick=()=>go('dash');
-  $('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="gh" id="ex">Export CSV</button><button class="gh" id="ph">Download photos &amp; notes</button><button class="gh" id="fw">Fill real workbook</button><input type="file" id="fwFile" accept=".xlsm,.xlsx" style="display:none">';$('bb').onclick=()=>go('dash');$('ex').onclick=()=>exportCsv(sv);$('ph').onclick=()=>exportMedia(sv);$('fw').onclick=()=>$('fwFile').click();$('fwFile').onchange=()=>{const f=$('fwFile').files[0];$('fwFile').value='';if(f)fillRealWorkbook(sv,f)};
+  $('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="gh" id="ex">Export CSV</button><button class="gh" id="ph">Download photos &amp; notes</button><button class="gh" id="fw">Fill real workbook</button><button class="gh" id="ot">Fill Survey Tool</button><input type="file" id="fwFile" accept=".xlsm,.xlsx" style="display:none">';$('bb').onclick=()=>go('dash');$('ex').onclick=()=>exportCsv(sv);$('ph').onclick=()=>exportMedia(sv);$('fw').onclick=()=>$('fwFile').click();$('ot').onclick=()=>openOnsiteSheet(sv);$('fwFile').onchange=()=>{const f=$('fwFile').files[0];$('fwFile').value='';if(f)fillRealWorkbook(sv,f)};
   const done=ALL.filter(s=>['g','n'].includes(status(sv,s))).length,st=gv('general',sv.gen,'Site Type');
   $('main').innerHTML=`<div class="sum"><b>${done} of ${ALL.length}</b> sections complete${st&&S.expected[st]?`<br>Expected for a ${esc(st).toLowerCase()} site: ${esc(S.expected[st])}`:''}</div>`+summaryHtml(sv)+`<div class="sec">Sections</div>`+ALL.map(s=>{const x=status(sv,s),m=s==='general'?miss('general',sv.gen).length:(sv.entries[s]||[]).reduce((a,e)=>a+miss(s,e).length,0),c=(sv.entries[s]||[]).length;
    return `<button class="row" data-s="${s}"><span class="dot ${x}"></span><span class="t">${s==='general'?'General (site, meters, zones)':S[s].label}<small>${ST[x]}${x==='a'||(x==='r'&&s==='general'&&m)?' — '+m+' required left':''}${s!=='general'&&c?' — '+c+' logged':''}</small></span></button>`}).join('');
@@ -1196,6 +1196,322 @@ async function wbFillWorkbook(rows,buf,opts){opts=Object.assign({outputType:'blo
 function wbPlanNumbers(rows){return wbEngine().planNumbers(rows)}
 // Every row of each General block (not just the ones holding a value) so cloned extra entries - e.g. Meter 2 - are complete.
 function wbBlockRows(){const o={};S.general.blocks.forEach(b=>{if(Array.isArray(b.inst)&&b.inst.length)o[b.n]=b.f.filter(f=>f.length>5&&f[5]!=null).map(f=>f[5])});return o}
+// ---------- fill the Energy Survey Tool's Input/Output Onsite Data (port of two Inspired macros) ----------
+// ---------- Site Data Collection -> Energy Survey Tool "Input/Output Onsite Data" (port of Inspired VBA) ----------
+// Ports three things, verified against Inspired's own completed example (Key Retirement Solutions, FY25):
+//  1. Build_Master_Output.BuildMasterOutput  (Site Data Collection workbook)
+//  2. OnsiteData_Expand_Zones.Expand_Onsite_Zones (Energy Survey Tool: Input Onsite Data -> Output Onsite Data)
+//  3. writes both into the Energy Survey Tool .xlsm (cells only - macros, validations and all other sheets untouched)
+// Factory takes { JSZip, DOMParser, XMLSerializer } so it runs in the browser and in Node (jsdom) tests.
+function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
+  const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const SHEETS = ['General', 'Heating', 'DHW', 'Cooling', 'Ventilation', 'Lighting', 'Process', 'Catering', 'Leisure', 'Small Power', 'Other'];
+  const parser = new DOMParser(), serializer = new XMLSerializer();
+
+  const colNum = (L) => { let n = 0; for (const ch of L) n = n * 26 + ch.charCodeAt(0) - 64; return n; };
+  const colLetter = (n) => { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
+  const splitRef = (r) => { const m = /^([A-Z]+)(\d+)$/.exec(r); return [colNum(m[1]), +m[2]]; };
+  const kids = (el, name) => Array.from(el.childNodes).filter(n => n.nodeType === 1 && n.localName === name);
+  const first = (el, name) => kids(el, name)[0] || null;
+
+  async function readXml(zip, path) {
+    const f = zip.file(path);
+    if (!f) throw new Error('Missing part in workbook: ' + path);
+    return parser.parseFromString(await f.async('string'), 'application/xml');
+  }
+  async function sheetPaths(zip) {
+    const wb = await readXml(zip, 'xl/workbook.xml');
+    const rels = await readXml(zip, 'xl/_rels/workbook.xml.rels');
+    const target = {};
+    Array.from(rels.getElementsByTagName('Relationship')).forEach(r => { target[r.getAttribute('Id')] = r.getAttribute('Target'); });
+    const out = {};
+    Array.from(wb.getElementsByTagNameNS(NS, 'sheet')).forEach(s => {
+      let t = target[s.getAttributeNS(RNS, 'id')] || '';
+      t = t.replace(/^\//, ''); if (!t.startsWith('xl/')) t = 'xl/' + t;
+      out[s.getAttribute('name')] = t;
+    });
+    return { wbDoc: wb, paths: out };
+  }
+  async function sharedStrings(zip) {
+    const f = zip.file('xl/sharedStrings.xml'); if (!f) return [];
+    const d = parser.parseFromString(await f.async('string'), 'application/xml');
+    return Array.from(d.getElementsByTagNameNS(NS, 'si')).map(si =>
+      Array.from(si.getElementsByTagNameNS(NS, 't')).filter(t => !(t.parentNode.localName === 'rPh')).map(t => t.textContent).join(''));
+  }
+  const BUILTIN = { 0: 'General', 1: '0', 2: '0.00', 3: '#,##0', 4: '#,##0.00', 9: '0%', 10: '0.00%', 14: 'mm-dd-yy', 15: 'd-mmm-yy', 16: 'd-mmm', 17: 'mmm-yy', 18: 'h:mm AM/PM', 19: 'h:mm:ss AM/PM', 20: 'h:mm', 21: 'h:mm:ss', 22: 'm/d/yy h:mm', 45: 'mm:ss', 46: '[h]:mm:ss', 47: 'mmss.0' };
+  // xf index -> number-format code, read from the file that was uploaded
+  async function styleFormats(zip) {
+    const f = zip.file('xl/styles.xml'); if (!f) return () => 'General';
+    const d = parser.parseFromString(await f.async('string'), 'application/xml');
+    const custom = {};
+    Array.from(d.getElementsByTagNameNS(NS, 'numFmt')).forEach(n => { custom[n.getAttribute('numFmtId')] = n.getAttribute('formatCode'); });
+    const cx = first(d.documentElement, 'cellXfs');
+    const xfs = cx ? kids(cx, 'xf') : [];
+    return (s) => { const x = xfs[+s || 0]; if (!x) return 'General'; const id = x.getAttribute('numFmtId') || '0'; return custom[id] || BUILTIN[id] || 'General'; };
+  }
+  const kindOfFmt = (code) => {
+    const c = (code || 'General').replace(/"[^"]*"|\[[^\]]*\]|\\./g, '').toLowerCase();
+    if (/[dmy]/.test(c.replace(/[hs]:mm|mm:ss|h:mm/g, '')) && /d|y/.test(c)) return 'date';
+    if (/h|s/.test(c) && /:/.test(c)) return 'time';
+    if (c.includes('%')) return 'pct';
+    return 'num';
+  };
+
+  // Reads every cell of a sheet: { cells: Map('A1' -> {t:'s'|'n', v, fmt, f}), minC, maxC, maxR }
+  async function readSheet(zip, path, sst, fmtOf) {
+    const doc = await readXml(zip, path);
+    const cells = new Map(); let minC = Infinity, maxC = 0, maxR = 0;
+    Array.from(doc.getElementsByTagNameNS(NS, 'c')).forEach(c => {
+      const ref = c.getAttribute('r'); const [cn, rn] = splitRef(ref);
+      const fEl = first(c, 'f'), vEl = first(c, 'v'), isEl = first(c, 'is');
+      const styled = c.hasAttribute('s') && c.getAttribute('s') !== '0';
+      let v = null, t = c.getAttribute('t') || 'n';
+      if (t === 's' && vEl) { v = sst[+vEl.textContent] ?? ''; t = 's'; }
+      else if (t === 'inlineStr' && isEl) { v = Array.from(isEl.getElementsByTagNameNS(NS, 't')).map(x => x.textContent).join(''); t = 's'; }
+      else if ((t === 'str' || t === 'e') && vEl) { v = vEl.textContent; t = 's'; }
+      else if (t === 'b' && vEl) { v = vEl.textContent === '1' ? 'TRUE' : 'FALSE'; t = 's'; }
+      else if (vEl && vEl.textContent !== '') { v = parseFloat(vEl.textContent); t = 'n'; }
+      const hasF = !!fEl;
+      if (v !== null || hasF || styled) { // Excel's UsedRange also counts formatted-but-empty cells
+        minC = Math.min(minC, cn); maxC = Math.max(maxC, cn); maxR = Math.max(maxR, rn);
+      }
+      cells.set(ref, { t, v, fmt: fmtOf(c.getAttribute('s')), f: hasF ? (fEl.textContent || '') : null, fShared: hasF && fEl.getAttribute('t') === 'shared' });
+    });
+    return { cells, minC: isFinite(minC) ? minC : 1, maxC, maxR };
+  }
+
+  // The only calculated cells that feed the Master Output are Annualised Hours (weeks x sum of day lengths)
+  // and one simple product. They are re-evaluated here because the filled workbook has never been opened in
+  // Excel (so its stored results are stale). Anything else keeps the value stored in the file.
+  function evalCell(sh, ref) {
+    const c = sh.cells.get(ref); if (!c || !c.f) return c ? c.v : null;
+    const f = c.f;
+    const num = (r) => { const x = sh.cells.get(r); return x && x.t === 'n' && x.v !== null ? x.v : null; };
+    if (/sys_hrs/.test(f)) {
+      const w = /weeks,\s*\$?([A-Z]+)\$?(\d+)/.exec(f); if (!w) return c.v;
+      const weeks = num(w[1] + w[2]) || 0; let tot = 0;
+      const re = /IF\(OR\(\$?([A-Z]+\$?\d+)="",\$?([A-Z]+\$?\d+)=""\)/g; let m;
+      while ((m = re.exec(f))) {
+        const a = sh.cells.get(m[1].replace('$', '')), b = sh.cells.get(m[2].replace('$', ''));
+        const blank = (x) => !x || x.v === null || x.v === '';
+        if (blank(a) || blank(b)) continue;
+        if (a.t !== 'n' || b.t !== 'n') continue; // text in a time cell -> IFERROR -> 0
+        tot += (a.v === 0 && b.v === 0) ? 24 : (b.v > a.v ? (b.v - a.v) * 24 : 0);
+      }
+      return Math.round(weeks * tot * 1e9) / 1e9;
+    }
+    const p = /^\$?([A-Z]+\$?\d+)\*\$?([A-Z]+\$?\d+)$/.exec(f.trim());
+    if (p) return (num(p[1].replace('$', '')) || 0) * (num(p[2].replace('$', '')) || 0);
+    return c.v;
+  }
+  const valueOf = (sh, ref) => {
+    const c = sh.cells.get(ref); if (!c) return null;
+    if (c.f) { const v = evalCell(sh, ref); return v === null || v === '' ? null : { t: typeof v === 'number' ? 'n' : 's', v, fmt: c.fmt }; }
+    return c.v === null || c.v === '' ? null : { t: c.t, v: c.v, fmt: c.fmt };
+  };
+
+  // === 1. Master Output (Build_Master_Output.BuildMasterOutput) ===
+  async function masterFromSdc(sdcBuf) {
+    const zip = await JSZip.loadAsync(sdcBuf);
+    const { paths } = await sheetPaths(zip);
+    const sst = await sharedStrings(zip), fmtOf = await styleFormats(zip);
+    const sheets = {};
+    for (const n of SHEETS) if (paths[n]) sheets[n] = await readSheet(zip, paths[n], sst, fmtOf);
+    if (!sheets.General) throw new Error('This does not look like the Inspired Site Data Collection workbook (no "General" sheet).');
+    const gv = valueOf(sheets.General, 'F3');
+    const siteName = gv ? String(gv.v) : '';
+    let maxCols = 0, headerSheet = null;
+    for (const n of SHEETS) { const s = sheets[n]; if (s && s.maxC > maxCols) { maxCols = s.maxC; headerSheet = s; } } // strict > : first widest wins
+    const hdr = [{ t: 's', v: 'Site Name', fmt: 'General' }];
+    for (let c = headerSheet.minC; c <= headerSheet.maxC; c++) hdr.push(valueOf(headerSheet, colLetter(c) + '1'));
+    const W = hdr.length, rows = [];
+    for (const n of SHEETS) {
+      const s = sheets[n]; if (!s) continue;
+      for (let r = 2; r <= s.maxR; r++) {
+        const row = [{ t: 's', v: siteName, fmt: 'General' }];
+        for (let c = s.minC; c <= s.maxC; c++) row.push(valueOf(s, colLetter(c) + r));
+        while (row.length < W) row.push(null);
+        row.length = W;
+        const blank = (x) => x === null || x.v === '' ;
+        if (blank(row[2]) && blank(row[3])) continue; // macro deletes rows with no Status and no System Name
+        rows.push(row);
+      }
+    }
+    return { header: hdr, rows, siteName };
+  }
+
+  // === 2. Expand_Onsite_Zones ===
+  const pad = (n) => String(n).padStart(2, '0');
+  function cstr(x) { // VBA CStr() of a cell value, as the macro sees it
+    if (x === null || x === undefined) return '';
+    if (x.t === 's') return String(x.v);
+    const k = kindOfFmt(x.fmt);
+    if (k === 'time') { const s = Math.round((x.v % 1) * 86400); return pad(Math.floor(s / 3600) % 24) + ':' + pad(Math.floor(s / 60) % 60) + ':' + pad(s % 60); }
+    if (k === 'date') { const d = new Date(Math.round((x.v - 25569) * 86400000)); return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + '/' + d.getUTCFullYear(); }
+    return String(Math.round(x.v * 1e12) / 1e12);
+  }
+  const clean = (x) => { let s = cstr(x).replace(/^ +| +$/g, ''); while (s.includes('  ')) s = s.replace(/  /g, ' '); return s; };
+  const esoSheet = (s) => s === 'Heating' ? 'ESO-8' : s === 'Lighting' ? 'ESO-7' : 'No Destination';
+
+  function expandZones(header, rows) {
+    let fz = 0;
+    for (let c = 0; c < header.length; c++) { const h = clean(header[c]).toLowerCase(); if (h.includes('field') && h.includes('population')) { fz = c; break; } }
+    if (!header.length || (!/field/i.test(clean(header[fz])))) throw new Error('Could not find a "Fields For Population" header in the Master Output.');
+    let lastCol = header.length; // macro uses the last used column of the sheet
+    while (lastCol > fz + 1 && rows.every(r => r[lastCol - 1] == null || r[lastCol - 1].v === '') && clean(header[lastCol - 1]) === '') lastCol--;
+    const mz = lastCol - fz;
+    let zn = new Array(mz + 1).fill(''), zc = 0, cur = ''; const out = [];
+    for (const r of rows) {
+      const status = clean(r[1]), sys = clean(r[2]), desc = clean(r[4]);
+      if (sys && sys !== cur) { cur = sys; zn = new Array(mz + 1).fill(''); zc = 0; }
+      if (desc === 'Zone') { zc = 0; for (let z = 1; z <= mz; z++) { const v = clean(r[fz + z - 1]); zn[z] = v; if (v) zc++; } continue; }
+      if (status.toLowerCase() !== 'mandatory') continue;
+      const site = clean(r[0]), title = clean(r[3]);
+      if (!title && !desc) continue;
+      const eso = esoSheet(cur);
+      if (zc === 0) out.push([site, status, sys, title, desc, '', '', eso]);
+      else for (let z = 1; z <= zc; z++) { const v = clean(r[fz + z - 1]); if (v) out.push([site, status, sys, title, desc, zn[z], v, eso]); }
+    }
+    return out;
+  }
+
+  // === 3. write into the Energy Survey Tool ===
+  async function fillSurveyTool(estBuf, master, opts) {
+    opts = opts || {};
+    const zip = await JSZip.loadAsync(estBuf);
+    const { wbDoc, paths } = await sheetPaths(zip);
+    const inPath = paths['Input Onsite Data'], outPath = paths['Output Onsite Data'];
+    if (!inPath || !outPath) throw new Error('This does not look like the Inspired Energy Survey Tool (no Input/Output Onsite Data sheets).');
+    const siteName = opts.siteName != null && opts.siteName !== '' ? String(opts.siteName) : master.siteName;
+    const header = master.header.map((h, i) => i === 0 ? h : h);
+    const rows = master.rows.map(r => { const x = r.slice(); x[0] = { t: 's', v: siteName, fmt: 'General' }; return x; });
+    const expanded = expandZones(header, rows).map(r => { r[0] = clean({ t: 's', v: siteName }); return r; });
+
+    // --- styles: append number-format xfs we need
+    const stDoc = await readXml(zip, 'xl/styles.xml');
+    const numFmts = first(stDoc.documentElement, 'numFmts');
+    const cx = first(stDoc.documentElement, 'cellXfs');
+    const codeToId = {}; Object.keys(BUILTIN).forEach(id => { if (!(BUILTIN[id] in codeToId)) codeToId[BUILTIN[id]] = +id; });
+    let maxId = 163;
+    if (numFmts) Array.from(numFmts.childNodes).filter(n => n.nodeType === 1).forEach(n => { const id = +n.getAttribute('numFmtId'); codeToId[n.getAttribute('formatCode')] = id; maxId = Math.max(maxId, id); });
+    const xfCache = {};
+    const styleFor = (code) => {
+      code = code || 'General';
+      if (code === 'General') return 0;
+      if (xfCache[code] != null) return xfCache[code];
+      let id = codeToId[code];
+      if (id == null) {
+        id = ++maxId; codeToId[code] = id;
+        let nf = numFmts; if (!nf) { nf = stDoc.createElementNS(NS, 'numFmts'); stDoc.documentElement.insertBefore(nf, stDoc.documentElement.firstChild); }
+        const e = stDoc.createElementNS(NS, 'numFmt'); e.setAttribute('numFmtId', id); e.setAttribute('formatCode', code); nf.appendChild(e);
+        nf.setAttribute('count', Array.from(nf.childNodes).filter(n => n.nodeType === 1).length);
+      }
+      const xf = stDoc.createElementNS(NS, 'xf');
+      xf.setAttribute('numFmtId', id); xf.setAttribute('fontId', '0'); xf.setAttribute('fillId', '0'); xf.setAttribute('borderId', '0'); xf.setAttribute('xfId', '0'); xf.setAttribute('applyNumberFormat', '1');
+      cx.appendChild(xf);
+      const n = kids(cx, 'xf').length; cx.setAttribute('count', n);
+      return (xfCache[code] = n - 1);
+    };
+
+    function rowEl(sd, doc, n) {
+      let prev = null;
+      for (const r of kids(sd, 'row')) { const rn = +r.getAttribute('r'); if (rn === n) return r; if (rn > n) { prev = r; break; } }
+      const el = doc.createElementNS(NS, 'row'); el.setAttribute('r', n);
+      if (prev) sd.insertBefore(el, prev); else sd.appendChild(el);
+      return el;
+    }
+    function cellEl(row, doc, ref) {
+      const cn = splitRef(ref)[0]; let prev = null;
+      for (const c of kids(row, 'c')) { const k = splitRef(c.getAttribute('r'))[0]; if (k === cn) return c; if (k > cn) { prev = c; break; } }
+      const el = doc.createElementNS(NS, 'c'); el.setAttribute('r', ref);
+      if (prev) row.insertBefore(el, prev); else row.appendChild(el);
+      return el;
+    }
+    function clearCell(c) { Array.from(c.childNodes).forEach(n => c.removeChild(n)); c.removeAttribute('t'); }
+    function setCell(sd, doc, ref, x, keepStyle) {
+      const c = cellEl(rowEl(sd, doc, splitRef(ref)[1]), doc, ref);
+      clearCell(c);
+      if (x === null || x === undefined || x === '' || (x.v !== undefined && (x.v === '' || x.v === null))) { return c; }
+      if (typeof x === 'string' || x.t === 's') {
+        const s = typeof x === 'string' ? x : String(x.v);
+        c.setAttribute('t', 'inlineStr');
+        const is = doc.createElementNS(NS, 'is'), t = doc.createElementNS(NS, 't');
+        t.setAttribute('xml:space', 'preserve'); t.textContent = s; is.appendChild(t); c.appendChild(is);
+        if (!keepStyle) c.removeAttribute('s');
+      } else {
+        const v = doc.createElementNS(NS, 'v'); v.textContent = String(x.v); c.appendChild(v);
+        if (!keepStyle) { const st = styleFor(x.fmt); if (st) c.setAttribute('s', st); else c.removeAttribute('s'); }
+      }
+      return c;
+    }
+    const setDimension = (doc, maxC, maxR) => { const d = doc.getElementsByTagNameNS(NS, 'dimension')[0]; if (d) d.setAttribute('ref', 'A1:' + colLetter(Math.max(maxC, 1)) + Math.max(maxR, 1)); };
+    const clearFrom2 = (sd) => kids(sd, 'row').forEach(r => { if (+r.getAttribute('r') >= 2) sd.removeChild(r); });
+
+    // Input Onsite Data: header + master rows (values; number formats carried over, like the paste does)
+    const inDoc = await readXml(zip, inPath), inSd = first(inDoc.documentElement, 'sheetData');
+    clearFrom2(inSd);
+    header.forEach((h, i) => { setCell(inSd, inDoc, colLetter(i + 1) + '1', h && h.v !== null ? { t: 's', v: h.v } : null, true); });
+    rows.forEach((r, ri) => r.forEach((x, ci) => { if (x) setCell(inSd, inDoc, colLetter(ci + 1) + (ri + 2), x); }));
+    setDimension(inDoc, header.length, rows.length + 1);
+    // Output Onsite Data: ClearContents from row 2 (keeps formats), then the 8 expanded columns
+    const outDoc = await readXml(zip, outPath), outSd = first(outDoc.documentElement, 'sheetData');
+    kids(outSd, 'row').forEach(r => { if (+r.getAttribute('r') >= 2) kids(r, 'c').forEach(clearCell); });
+    // Excel turns a plain number written from VBA as text ("63") into a number; do the same so downstream formulas see numbers.
+    // (Excel also turns things like "5-7" into a date; that is deliberately NOT copied - it stays as text.)
+    const isPlainNum = (v) => /^-?(0|[1-9]\d*)(\.\d+)?$/.test(v) && Math.abs(parseFloat(v)) < 1e15;
+    expanded.forEach((r, ri) => r.forEach((v, ci) => { if (v !== '') setCell(outSd, outDoc, colLetter(ci + 1) + (ri + 2), (ci === 6 && isPlainNum(v)) ? { t: 'n', v: parseFloat(v), fmt: 'General' } : { t: 's', v }, true); }));
+
+    // Ask Excel to recalculate everything the first time the file is opened
+    const calc = wbDoc.getElementsByTagNameNS(NS, 'calcPr')[0];
+    if (calc) calc.setAttribute('fullCalcOnLoad', '1');
+
+    zip.file(inPath, serializer.serializeToString(inDoc));
+    zip.file(outPath, serializer.serializeToString(outDoc));
+    zip.file('xl/styles.xml', serializer.serializeToString(stDoc));
+    zip.file('xl/workbook.xml', serializer.serializeToString(wbDoc));
+    const blob = await zip.generateAsync({ type: opts.outputType === 'uint8array' ? 'uint8array' : 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.ms-excel.sheet.macroEnabled.12' });
+    return { blob, inputRows: rows.length, outputRows: expanded.length, siteName, master, expanded };
+  }
+
+  return { masterFromSdc, expandZones, fillSurveyTool, cstr, clean };
+}
+
+const onsiteEngine=()=>makeOnsiteEngine({JSZip:typeof JSZip!=='undefined'?JSZip:undefined,DOMParser,XMLSerializer});
+let LASTFILL=null; // the Site Data Collection workbook filled in this session, so it need not be picked again
+function openOnsiteSheet(sv){
+ const old=document.getElementById('otSheet');if(old)old.remove();
+ const sb=document.createElement('div');sb.className='sheet-b o';sb.id='otSheet';
+ sb.innerHTML='<div class="sheet"><h3 style="margin:0 0 .4rem">Fill the Energy Survey Tool</h3>'+
+  '<p style="font-size:.85rem;color:var(--soft);margin:0 0 .6rem">Does what the two Inspired macros do (Master Output, then Expand Onsite Zones) and writes the result into the Energy Survey Tool\'s <b>Input Onsite Data</b> and <b>Output Onsite Data</b> tabs. Nothing else in the tool is touched.</p>'+
+  '<label>1. Filled Site Data Collection workbook</label><div id="otA" style="font-size:.85rem;margin-bottom:.3rem"></div><input type="file" id="otF1" accept=".xlsm,.xlsx">'+
+  '<label style="margin-top:.7rem">2. Inspired Energy Survey Tool (.xlsm)</label><input type="file" id="otF2" accept=".xlsm">'+
+  '<label style="margin-top:.7rem">Site name to write into the tool</label><input id="otN">'+
+  '<div style="font-size:.78rem;color:var(--soft);margin:.2rem 0 .8rem">Use exactly the name the tool expects for this site (it can differ from the workbook, e.g. the workbook said "Fleming House - Preston" but the tool used "Fleming House").</div>'+
+  '<div style="display:flex;gap:.5rem"><button class="gh" id="otX" style="flex:1">Cancel</button><button class="pri" id="otGo" style="flex:2">Build Survey Tool</button></div><div id="otMsg" style="font-size:.85rem;margin-top:.7rem;white-space:pre-wrap"></div></div>';
+ document.body.appendChild(sb);
+ $('otN').value=(gv('general',sv.gen,'Site Name')||'');
+ $('otA').textContent=LASTFILL?'Using the workbook you just filled ('+LASTFILL.name+'). Pick a file below only to use a different one.':'Pick the _FILLED.xlsm that "Fill real workbook" produced.';
+ sb.onclick=e=>{if(e.target===sb)sb.remove()};$('otX').onclick=()=>sb.remove();
+ $('otGo').onclick=async()=>{
+  const msg=$('otMsg'),f1=$('otF1').files[0],f2=$('otF2').files[0];
+  if(!f2){msg.textContent='Pick the Energy Survey Tool first.';return}
+  if(!f1&&!LASTFILL){msg.textContent='Pick the filled Site Data Collection workbook.';return}
+  if(typeof JSZip==='undefined'){msg.textContent='Zip library not loaded — check your internet connection and try again.';return}
+  $('otGo').disabled=true;msg.textContent='Building…';
+  try{
+   const b1=f1?await f1.arrayBuffer():await LASTFILL.blob.arrayBuffer(),b2=await f2.arrayBuffer(),E=onsiteEngine();
+   const m=await E.masterFromSdc(b1);
+   const nm=$('otN').value.trim()||m.siteName;
+   const r=await E.fillSurveyTool(b2,m,{siteName:nm});
+   const nd=r.expanded.filter(x=>x[7]==='No Destination').length;
+   dl(r.blob,f2.name.replace(/\.xlsm$/i,'')+'_ONSITE_FILLED.xlsm');
+   msg.textContent='Done. '+r.inputRows+' rows written to Input Onsite Data and '+r.outputRows+' to Output Onsite Data ('+nd+' marked "No Destination", as the macro does).\nOpen the file in Excel and let it recalculate, then carry on with the ESO tabs.';
+   toast('Downloaded filled Energy Survey Tool');
+  }catch(e){console.error(e);msg.textContent='Could not build it: '+(e&&e.message?e.message:'see console')}
+  $('otGo').disabled=false;
+ };
+}
 async function fillRealWorkbook(sv,file){
  toast('Filling workbook…');
  let rows;
@@ -1214,7 +1530,7 @@ async function fillRealWorkbook(sv,file){
   try{res=await wbFillWorkbook(rows,buf,{force:true,blockRows:wbBlockRows()})}catch(e){console.error('forced fill failed',e);alert('Could not fill the workbook — '+(e&&e.message?e.message:'see console'));return}
  }
  const siteName=(gv('general',sv.gen,'Site Name')||'site').replace(/\W+/g,'_');
- dl(res.blob,siteName+'_Inspired_ESOS_FILLED.xlsm');
+ LASTFILL={name:siteName+'_Inspired_ESOS_FILLED.xlsm',blob:res.blob};dl(res.blob,siteName+'_Inspired_ESOS_FILLED.xlsm');
  toast('Downloaded filled workbook');
  if(res.notes&&res.notes.length)alert('Workbook filled — '+res.notes.length+' item(s) need a quick check:\n\n'+res.notes.map(n=>'• '+n).join('\n'));
 }
