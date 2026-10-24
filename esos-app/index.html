@@ -1722,7 +1722,20 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     return res;
   }
 
-  return { masterFromSdc, expandZones, fillSurveyTool, portfolioSites, esoRowEstimate, cstr, clean, fillQaChecklist };
+  // Financial year of a project = the year of the Report End Date on the Energy Survey Tool's Overview tab ("FY25").
+  async function toolFY(estBuf) {
+    const zip = await JSZip.loadAsync(estBuf);
+    const { paths } = await sheetPaths(zip);
+    if (!paths['Overview']) return null;
+    const sh = await readSheet(zip, paths['Overview'], await sharedStrings(zip), await styleFormats(zip));
+    let end = null, start = null;
+    for (let r = 1; r < 40; r++) { const k = (txt(sh, 'A' + r) || '').trim(); if (k === 'Report End Date') end = valueOf(sh, 'B' + r); if (k === 'Report Start Date') start = valueOf(sh, 'B' + r); }
+    const ser = dateSerial(end) || dateSerial(start); if (!ser) return null;
+    const y = new Date(Date.UTC(1899, 11, 30) + ser * 86400000).getUTCFullYear();
+    return 'FY' + String(y).slice(-2);
+  }
+
+  return { masterFromSdc, expandZones, fillSurveyTool, portfolioSites, esoRowEstimate, cstr, clean, fillQaChecklist, toolFY };
 }
 
 const onsiteEngine=()=>makeOnsiteEngine({JSZip:typeof JSZip!=='undefined'?JSZip:undefined,DOMParser,XMLSerializer});
@@ -1764,6 +1777,7 @@ function openOnsiteSheet(sv){
   try{
    const b1=f1?await f1.arrayBuffer():await LASTFILL.blob.arrayBuffer(),b2=await f2.arrayBuffer(),E=onsiteEngine();
    const m=await E.masterFromSdc(b1);
+   const fy=await E.toolFY(b2);if(fy){try{localStorage.setItem(fyKey(sv),fy)}catch(e){}}
    // How many real answers does this Site Data Collection file hold? A bare 0 / 00:00:00 is just a formula result in an unfilled template.
    const answers=m.rows.reduce((n,r)=>n+r.slice(6).filter(x=>x&&x.v!==''&&x.v!=null&&String(x.v)!=='0'&&String(x.v)!=='00:00:00').length,0);
    const srcName=f1?f1.name:LASTFILL.name;
@@ -1771,11 +1785,12 @@ function openOnsiteSheet(sv){
    const nm=$('otN').value.replace(/\s+/g,' ').trim()||m.siteName;
    const r=await E.fillSurveyTool(b2,m,{siteName:nm,replaceAll:$('otR').checked});
    const nd=r.expanded.filter(x=>x[7]==='No Destination').length,w=[];
+   if(!fy)w.push('⚠ The tool\'s Overview tab has no Report Start / End Date, so the financial year for file names could not be read.');
    if(answers<15)w.push('⚠ Only '+answers+' answers were found in "'+srcName+'". Check this is the filled workbook for this site.');
    if(r.inPortfolio===false)w.push('⚠ "'+nm+'" is not on the tool\'s Portfolio tab, so its rows will not link to rates or consumption. Check the spelling.');
    if(r.eso.eso7>r.eso.capacity||r.eso.eso8>r.eso.capacity)w.push('⚠ ESO-7 would need up to '+r.eso.eso7+' rows and ESO-8 up to '+r.eso.eso8+', but only '+r.eso.capacity+' rows (6–40) have formulas. Fill the formulas down in Excel after running the ESO-7 / ESO-8 macros.');
    dl(r.blob,f2.name.replace(/(_ONSITE_FILLED)?\.xlsm$/i,'')+'_ONSITE_FILLED.xlsm');
-   msg.textContent='Done. '+(r.replacedRows?'Replaced the '+r.replacedRows+' rows already there for this site. ':'')+r.newRows+' rows added for "'+nm+'", read from "'+srcName+'" ('+answers+' answers).\nThe tool now holds '+r.sites.length+' site'+(r.sites.length>1?'s':'')+': '+r.sites.join(', ')+'.\n'+r.inputRows+' rows on Input Onsite Data, '+r.outputRows+' on Output Onsite Data ('+nd+' "No Destination", as the macro does). ESO-7 up to '+r.eso.eso7+' rows, ESO-8 up to '+r.eso.eso8+' (of '+r.eso.capacity+').'+(w.length?'\n\n'+w.join('\n'):'')+'\n\nOpen the file in Excel and let it recalculate. For the next site, pick THIS downloaded file as the tool.';
+   msg.textContent='Done. '+(r.replacedRows?'Replaced the '+r.replacedRows+' rows already there for this site. ':'')+r.newRows+' rows added for "'+nm+'", read from "'+srcName+'" ('+answers+' answers).'+(fy?'\nFinancial year from the tool\'s Report dates: '+fy+' (used to name the site files).':'')+'\nThe tool now holds '+r.sites.length+' site'+(r.sites.length>1?'s':'')+': '+r.sites.join(', ')+'.\n'+r.inputRows+' rows on Input Onsite Data, '+r.outputRows+' on Output Onsite Data ('+nd+' "No Destination", as the macro does). ESO-7 up to '+r.eso.eso7+' rows, ESO-8 up to '+r.eso.eso8+' (of '+r.eso.capacity+').'+(w.length?'\n\n'+w.join('\n'):'')+'\n\nOpen the file in Excel and let it recalculate. For the next site, pick THIS downloaded file as the tool.';
    toast('Downloaded filled Energy Survey Tool');
   }catch(e){console.error(e);msg.textContent='Could not build it: '+(e&&e.message?e.message:'see console')}
   $('otGo').disabled=false;
@@ -1827,12 +1842,13 @@ function openQaSheet(sv){
  };
 }
 // Inspired's file naming: "Inspired ESG_ESOS_Site Data Collection_<Company>_FY26_V3.5.6" (a site name is added so each site of one client has its own file)
-function sdcFileName(sv,file){
+function fyKey(sv){return 'fy|'+String(gv('general',sv.gen,'Customer Name')||'').trim().toLowerCase()}
+function sdcFileName(sv,file,fy){
  const clean=(x)=>String(x||'').replace(/[\\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
  const cust=clean(gv('general',sv.gen,'Customer Name')),site=clean(gv('general',sv.gen,'Site Name'));
  const ver=(/V\d+(\.\d+)+/.exec(file&&file.name||'')||['V3.5.6'])[0];
  const who=[cust,site].filter((x,i,a)=>x&&a.indexOf(x)===i).join(' - ')||'SITE';
- return 'Inspired ESG_ESOS_Site Data Collection_'+who+'_FY25_'+ver+'.xlsm';
+ return 'Inspired ESG_ESOS_Site Data Collection_'+who+'_'+(fy||'FY25')+'_'+ver+'.xlsm';
 }
 async function fillRealWorkbook(sv,file){
  toast('Filling workbook…');
@@ -1851,7 +1867,9 @@ async function fillRealWorkbook(sv,file){
   if(!goAhead)return;
   try{res=await wbFillWorkbook(rows,buf,{force:true,blockRows:wbBlockRows()})}catch(e){console.error('forced fill failed',e);alert('Could not fill the workbook — '+(e&&e.message?e.message:'see console'));return}
  }
- const outName=sdcFileName(sv,file);
+ let fy=null;try{fy=localStorage.getItem(fyKey(sv))}catch(e){}
+ if(!fy){const a=prompt('Which financial year is this project (e.g. 25)? This only names the file. The app reads it from the Energy Survey Tool\'s Report dates once you use Fill Survey Tool for this client.','25');fy='FY'+((a||'').replace(/\D/g,'').slice(-2)||'25');}
+ const outName=sdcFileName(sv,file,fy);
  LASTFILL={name:outName,blob:res.blob};dl(res.blob,outName);
  toast('Downloaded filled workbook');
  if(res.notes&&res.notes.length)alert('Workbook filled — '+res.notes.length+' item(s) need a quick check:\n\n'+res.notes.map(n=>'• '+n).join('\n'));
