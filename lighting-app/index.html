@@ -529,7 +529,7 @@ function paintRef() {
   $('bar').style.display = 'flex';
   $('bar').innerHTML = '<button class="gh" id="backBtn">Back</button>';
 
-  const tabs = [['lux', 'Lux levels'], ['tubes', 'Tube wattages'], ['ballast', 'Ballast loss']];
+  const tabs = [['lux', 'Lux levels'], ['leds', 'LED & lamp wattages'], ['tubes', 'Tube wattages'], ['ballast', 'Ballast loss']];
   let html = '<h2>Reference</h2><div class="tabs">' +
     tabs.map(([k, l]) => `<button class="${V.refTab === k ? 'pri' : 'gh'}" data-tab="${k}">${l}</button>`).join('') + '</div>';
 
@@ -538,6 +538,15 @@ function paintRef() {
     html += '<div class="tblwrap"><table class="reftbl"><thead><tr><th>Space type</th><th>Lux</th></tr></thead><tbody>' +
       LUX_REF.map(r => `<tr><td>${esc(r[0])}${r[2] ? `<div class="note">${esc(r[2])}</div>` : ''}</td><td class="n">${esc(r[1])}</td></tr>`).join('') +
       '</tbody></table></div>';
+  } else if (V.refTab === 'leds') {
+    html += `<p class="note">Typical <b>watts per lamp</b> (whole fitting for integral LED). Picking a lamp / fitting fills the wattage automatically; a value you type always overrides it. Basis: <b>A</b> published catalogue rating, <b>B</b> indicative only, <b>T</b> your Energy Survey Tool. Typical values, not measured loads \u2014 use the nameplate where you can.${fromForm ? ' Tap <b>Use</b> to select one for the luminaire you are entering.' : ''}</p>`;
+    html += '<input id="refQ" type="search" placeholder="Search e.g. batten, high bay, T8" style="width:100%;margin:0.4rem 0 0.6rem;padding:0.55rem 0.7rem;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)">';
+    LDGRP.forEach(g => {
+      html += `<div class="refhead" data-g>${esc(g)}</div><div class="tblwrap" data-gt><table class="reftbl"><thead><tr><th>Lamp / fitting</th><th>W</th><th>Basis</th>${fromForm ? '<th></th>' : ''}</tr></thead><tbody>` +
+        LDREF.filter(r => r[0] === g).map(r => `<tr data-q="${esc((r[1] + ' ' + g).toLowerCase())}"><td>${esc(r[1])}<div class="note">${esc(r[6])}${r[7] != null ? ' LED equivalent in your tool: ' + r[7] + ' W.' : ''}</div></td><td class="n">${r[2]} W${r[3] != null && r[4] != null ? '<div class="note">' + r[3] + '\u2013' + r[4] + '</div>' : ''}</td><td>${r[5]}</td>${fromForm ? `<td><button class="gh" data-ref="${esc(r[1])}">Use</button></td>` : ''}</tr>`).join('') +
+        '</tbody></table></div>';
+    });
+    html += '<details class="card note"><summary><b>Sources</b></summary><ul>' + LDSRC.map(x => '<li>' + (x[1] ? '<a href="' + x[1] + '" target="_blank" rel="noopener">' + esc(x[0]) + '</a>' : esc(x[0])) + '</li>').join('') + '</ul></details>';
   } else if (V.refTab === 'tubes') {
     html += `<p class="note">Nominal wattages of common linear fluorescent tubes.${fromForm ? ' Tap <b>Use</b> to put a wattage into the luminaire you are entering.' : ''}</p>`;
     TUBE_REF.forEach(g => {
@@ -556,6 +565,22 @@ function paintRef() {
   $('main').innerHTML = html;
   $('backBtn').onclick = () => { V.page = V.refBack || 'dash'; paint(); };
   document.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { V.refTab = b.dataset.tab; paint(); }; });
+  if ($('refQ')) $('refQ').oninput = ev => {
+    const q = ev.target.value.toLowerCase().trim();
+    document.querySelectorAll('tr[data-q]').forEach(r => { r.style.display = !q || r.dataset.q.includes(q) ? '' : 'none'; });
+    document.querySelectorAll('[data-gt]').forEach(t => {
+      const any = [...t.querySelectorAll('tr[data-q]')].some(r => r.style.display !== 'none');
+      t.style.display = any ? '' : 'none'; if (t.previousElementSibling) t.previousElementSibling.style.display = any ? '' : 'none';
+    });
+  };
+  document.querySelectorAll('[data-ref]').forEach(b => {
+    b.onclick = () => {
+      if (V.entry) { V.entry.ref = b.dataset.ref; V.entry.tech = techForRef(b.dataset.ref); }
+      V.page = 'newentry';
+      paint();
+      toast('Lamp set to ' + b.dataset.ref);
+    };
+  });
   document.querySelectorAll('[data-watt]').forEach(b => {
     b.onclick = () => {
       if (V.entry) V.entry.watt = b.dataset.watt;
@@ -789,6 +814,44 @@ function paintViewEntry() {
   $('fillWbBtn').onclick = () => fillWorkbook(sv);
 }
 
+// ---------- Wattage reference (typical lamp / fitting watts) ----------
+// Basis: A = published catalogue rating, B = indicative (no source checked), T = from Prash's Energy Survey Tool V4.3.2 (ESO-7-Helper)
+const LDREF = [["LED – panels", "LED panel 300 × 300", 18, 12, 24, "B", "Indicative only; no single catalogue figure checked.", null], ["LED – panels", "LED panel 600 × 300", 20, 15, 30, "B", "Indicative only.", null], ["LED – panels", "LED panel 600 × 600", 36, 30, 40, "A", "36 W and 40 W are the common catalogue ratings; 60 W high-output versions exist.", null], ["LED – panels", "LED panel 1200 × 300", 40, 35, 50, "A", "Catalogue ratings about 35–50 W.", null], ["LED – panels", "LED panel 1200 × 600", 60, 50, 72, "A", "Catalogue ratings about 60 W (up to 72 W).", null], ["LED – battens (whole fitting)", "LED batten 600 mm (2 ft)", 9, null, null, "T", "Replacement wattage in your Energy Survey Tool (1 × 2 ft).", null], ["LED – battens (whole fitting)", "LED batten 1200 mm (4 ft) single", 20, 18, 36, "A", "Catalogue ratings 18–36 W (several makers, some switchable).", null], ["LED – battens (whole fitting)", "LED batten 1500 mm (5 ft) single", 30, 18, 58, "A", "Wide spread: 18 W to 58 W across makers.", null], ["LED – battens (whole fitting)", "LED batten 1800 mm (6 ft) single", 40, 24, 68, "A", "Wide spread: 24 W to 68 W across makers.", null], ["LED – battens (whole fitting)", "LED batten 1200 mm (4 ft) twin", 40, null, null, "A", "One maker: 40 W.", null], ["LED – battens (whole fitting)", "LED batten 1500 mm (5 ft) twin", 60, null, null, "A", "One maker: 60 W.", null], ["LED – battens (whole fitting)", "LED batten 1800 mm (6 ft) twin", 65, null, null, "A", "One maker: 65 W.", null], ["LED – battens (whole fitting)", "LED linear pendant / suspended 1200 mm", 35, 25, 50, "B", "Indicative only.", null], ["LED – tubes (per tube)", "LED tube T8 600 mm (2 ft)", 8, 6.6, 9, "A", "Per tube. Enter number of tubes in Lamps per luminaire.", null], ["LED – tubes (per tube)", "LED tube T8 900 mm (3 ft)", 14, null, null, "A", "Per tube. One maker.", null], ["LED – tubes (per tube)", "LED tube T8 1200 mm (4 ft)", 18, 15, 18, "A", "Per tube. Some makers 12.5–16 W.", null], ["LED – tubes (per tube)", "LED tube T8 1500 mm (5 ft)", 22, 18, 24, "A", "Per tube.", null], ["LED – tubes (per tube)", "LED tube T8 1800 mm (6 ft)", 28, 24, 30, "A", "Per tube.", null], ["LED – tubes (per tube)", "LED tube T8 2400 mm (8 ft)", 36, null, null, "T", "Per tube. Replacement wattage in your Energy Survey Tool.", null], ["LED – downlights, spots & lamps", "LED downlight small (5–8 W, fire-rated)", 8, 5, 8, "A", "Many are 5 W / 8 W switchable; 8 W used. Check the switch setting.", null], ["LED – downlights, spots & lamps", "LED downlight standard (10–15 W)", 12, 10, 15, "A", "10 W LED (about 12.4 W with driver) to 15 W.", null], ["LED – downlights, spots & lamps", "LED downlight large commercial (18–24 W)", 20, 18, 24, "A", "Catalogue ratings 18–24 W.", null], ["LED – downlights, spots & lamps", "LED track spotlight", 20, 12, 35, "B", "Indicative only.", null], ["LED – downlights, spots & lamps", "LED spot lamp GU10 / MR16", 5, 4.6, 6, "A", "5 W is the usual 50 W halogen replacement.", null], ["LED – downlights, spots & lamps", "LED GLS bulb", 9, 4, 13, "B", "Indicative; depends on brightness (about 4–13 W).", null], ["LED – downlights, spots & lamps", "LED strip (per metre)", 10, 5, 15, "B", "Per metre. Enter metres in Lamps per luminaire.", null], ["LED – high bay", "LED high bay 100 W", 100, null, null, "A", "Catalogue rating (UFO / round).", null], ["LED – high bay", "LED high bay 150 W", 150, null, null, "A", "Catalogue rating (UFO / round).", null], ["LED – high bay", "LED high bay 200 W", 200, null, null, "A", "Catalogue rating (UFO / round).", null], ["LED – high bay", "LED high bay 240 W", 240, null, null, "A", "Catalogue rating (UFO / round).", null], ["LED – high bay", "LED linear high bay 150 W", 150, 100, 200, "B", "Indicative only.", null], ["LED – flood, external & emergency", "LED floodlight 10 W", 10, null, null, "A", "Catalogue rating.", null], ["LED – flood, external & emergency", "LED floodlight 20 W", 20, null, null, "A", "Catalogue rating.", null], ["LED – flood, external & emergency", "LED floodlight 30 W", 30, null, null, "A", "Catalogue rating.", null], ["LED – flood, external & emergency", "LED floodlight 50 W", 50, null, null, "A", "Catalogue rating.", null], ["LED – flood, external & emergency", "LED floodlight 100 W", 100, null, null, "A", "Catalogue rating.", null], ["LED – flood, external & emergency", "LED floodlight 150 W", 150, null, null, "A", "Catalogue rating.", null], ["LED – flood, external & emergency", "LED floodlight 200 W", 200, null, null, "A", "Catalogue rating.", null], ["LED – flood, external & emergency", "LED wall pack 60 W", 60, 20, 120, "T", "Replacement wattage in your Energy Survey Tool; makers list 20–120 W.", null], ["LED – flood, external & emergency", "LED bulkhead (2D replacement)", 14, 10, 20, "T", "Replacement wattage for a 2D lamp in your Energy Survey Tool.", null], ["LED – flood, external & emergency", "LED street / area light 50 W", 50, 30, 50, "B", "Indicative only.", null], ["LED – flood, external & emergency", "LED street / area light 100 W", 100, 60, 150, "B", "Indicative only.", null], ["LED – flood, external & emergency", "LED street / area light 150 W", 150, 100, 200, "B", "Indicative only.", null], ["LED – flood, external & emergency", "LED canopy light", 100, 45, 150, "B", "Indicative only.", null], ["LED – flood, external & emergency", "LED emergency exit sign / bulkhead (maintained)", 3, 3, 3.7, "A", "3 W rated; about 3.7 W in maintained use.", null], ["Existing (non-LED) lamps", "Fluorescent T5 2 ft (600 mm)", 14.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 9.0], ["Existing (non-LED) lamps", "Fluorescent T5 4 ft (1200 mm)", 28.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 18.0], ["Existing (non-LED) lamps", "Fluorescent T5 5 ft (1500 mm)", 35.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 22.0], ["Existing (non-LED) lamps", "Fluorescent T8 2 ft (600 mm)", 18.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 9.0], ["Existing (non-LED) lamps", "Fluorescent T8 4 ft (1200 mm)", 36.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 18.0], ["Existing (non-LED) lamps", "Fluorescent T8 5 ft (1500 mm)", 58.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 23.0], ["Existing (non-LED) lamps", "Fluorescent T8 6 ft (1800 mm)", 70.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 28.0], ["Existing (non-LED) lamps", "Fluorescent T8 8 ft (2400 mm)", 59.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 36.0], ["Existing (non-LED) lamps", "Fluorescent T12 5 ft (1500 mm)", 65.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 23.0], ["Existing (non-LED) lamps", "Fluorescent T12 6 ft (1800 mm)", 75.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 28.0], ["Existing (non-LED) lamps", "Fluorescent T12 8 ft (2400 mm)", 100.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 36.0], ["Existing (non-LED) lamps", "CFL standard lamp", 18.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 13.0], ["Existing (non-LED) lamps", "CFL 2D lamp", 28.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 14.0], ["Existing (non-LED) lamps", "CFL PL lamp", 26.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 10.0], ["Existing (non-LED) lamps", "Halogen GU10 / MR16 lamp", 50.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 4.6], ["Existing (non-LED) lamps", "Tungsten GLS lamp", 70.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 13.0], ["Existing (non-LED) lamps", "Tungsten halogen 150 W", 150.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 38.3], ["Existing (non-LED) lamps", "Tungsten halogen 200 W", 200.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 51.1], ["Existing (non-LED) lamps", "Tungsten halogen 300 W", 300.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 76.7], ["Existing (non-LED) lamps", "Tungsten halogen 400 W", 400.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 102.2], ["Existing (non-LED) lamps", "Tungsten halogen 500 W", 500.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 127.8], ["Existing (non-LED) lamps", "Tungsten halogen 1000 W", 1000.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 255.6], ["Existing (non-LED) lamps", "Tungsten halogen 1500 W", 1500.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 383.3], ["Existing (non-LED) lamps", "Tungsten halogen 2000 W", 2000.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 511.1], ["Existing (non-LED) lamps", "HID high bay 400 W", 400.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 150.0], ["Existing (non-LED) lamps", "HID high bay 250 W", 250.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 100.0], ["Existing (non-LED) lamps", "HID low bay 400 W", 400.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 150.0], ["Existing (non-LED) lamps", "Metal halide (MBI) 70 W", 70.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 30.0], ["Existing (non-LED) lamps", "Metal halide (MBI) 250 W", 250.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 100.0], ["Existing (non-LED) lamps", "HID wall pack 150 W", 150.0, null, null, "T", "Nominal lamp watts from your Energy Survey Tool (ESO-7-Helper); control-gear losses not included.", 60.0]];
+const LDSRC = [["Energy Survey Tool V4.3.2, ESO-7-Helper (your workbook): existing lamp watts and LED replacement watts", null], ["RS PRO LED high bay 100/150/200 W", "https://uk.rs-online.com/web/p/low-bay-high-bay-lighting/0147182"], ["Philips LED high bay 100/150/200 W", "https://futurelight.co.za/products/philips-led-high-bay-100w-150w-200w-ip65"], ["UFO high bay 100/150/200/240 W (supplier listing)", "https://www.hktdc.com/event/hklightingfairae/en/product/1X22XX72"], ["V-TAC 36 W 600×600 panel datasheet (Farnell)", "https://www.farnell.com/datasheets/2877770.pdf"], ["LED panels 36/40/60 W (Mr Resistor)", "https://www.mr-resistor.co.uk/product/25704"], ["Northgate LED battens 4/5/6 ft single and twin", "https://northgatelighting.com/news/easy-to-install---led-4000k-battens"], ["VECO LED batten datasheet 18/24/32 W", "https://cdn.yesss.co.uk/documents/1497954_03_VECOBAT4FT_Datasheet_d99b60ce40cbe2cb76a63adee398208a.pdf"], ["Luxna LED batten datasheet 4/5/6 ft", "https://cdn.yesss.co.uk/documents/2371360_03_LXBAT41836P_Datasheet_505cbb0d7c3c7db088278d38ed992b72.pdf"], ["Bell Lighting LED T8 tubes 600–1800 mm", "https://luckinslive.com/data/96c540ff-d34c-4316-9e77-cdd7a895ea5a/17022b2b-d5bf-4085-b216-f67c5afaacb8.PDF"], ["LEDVANCE LED T8 tubes (RS)", "https://uk.rs-online.com/web/p/led-tube-lights/2859950"], ["Fire-rated 5/8 W downlight (CPC Farnell)", "https://cpc.farnell.com/bright-source/230670/5w-8w-4cct-all-in-one-led-downlight/dp/LA10897"], ["RS PRO / Sylvania / SHOT LED downlights", "https://uk.rs-online.com/web/p/spotlights-downlights/0180419"], ["Aurora Enlite 5 W GU10 LED", "https://bltdirect.com/enlite-5w-non-dimmable-warm-white-gu10-light-bulbs-35w-alternative"], ["Lighting Styles LED floodlights 10–200 W", "https://www.lightingstyles.co.uk/professional-aluminium-led-floodlight-with-sensor-accessories"], ["RS PRO 100 W floodlight", "https://uk.rs-online.com/web/p/products/7871323"], ["Whitecroft Pathfinder 2 emergency bulkhead 3 W", "https://luminaires.dialux.com/en-US/article/pdf/7juIdkQuTnG5w44Rq_3wsA"], ["Robus exit box 3 W (3.7 W maintained)", "https://bltdirect.com/robus-exit-box-3w-white-led-maintained-ip20-c-w-down-legend"]];
+const LDMAP = {};
+LDREF.forEach(r => { LDMAP[r[1]] = { g: r[0], n: r[1], w: r[2], lo: r[3], hi: r[4], b: r[5], note: r[6], eq: r[7] }; });
+const LDGRP = [...new Set(LDREF.map(r => r[0]))];
+const LDBAS = { A: 'published catalogue rating', B: 'indicative only (no source checked)', T: 'your Energy Survey Tool' };
+// Lamp technology implied by a reference row (used to pre-select Lamp Technology)
+function techForRef(n) {
+  if (/^LED/.test(n)) return 'LED';
+  if (/T8/.test(n)) return 'Fluorescent T8';
+  if (/T5/.test(n)) return 'Fluorescent T5';
+  if (/Halogen GU10|Tungsten halogen/.test(n)) return 'Halogen';
+  if (/Tungsten GLS/.test(n)) return 'Incandescent';
+  return 'Other';
+}
+// Effective lamp wattage: a manual value always wins; otherwise the reference for the chosen lamp; otherwise 0
+function effWatt(e) {
+  const m = e.watt;
+  if (m !== undefined && m !== null && String(m).trim() !== '' && !isNaN(parseFloat(m))) return { w: parseFloat(m), src: 'Manual', ref: LDMAP[e.ref] };
+  const r = LDMAP[e.ref];
+  if (r) return { w: r.w, src: 'Reference', ref: r };
+  return { w: 0, src: '', ref: r };
+}
+function wattNote(e) {
+  const x = effWatt(e), r = x.ref;
+  const rg = r && r.lo != null && r.hi != null ? ' (typical range ' + r.lo + '\u2013' + r.hi + ' W)' : '';
+  if (x.src === 'Manual') return 'Manual value in use: ' + x.w + ' W.' + (r ? ' Reference for this lamp: ' + r.w + ' W' + rg + '.' : '');
+  if (x.src === 'Reference') return 'Reference ' + r.w + ' W used' + rg + ' \u2014 ' + LDBAS[r.b] + '. ' + r.note + ' Type a value above to override.';
+  return 'Pick a lamp / fitting from the list to fill this automatically, or enter the wattage.';
+}
+function refSelectHtml(cur) {
+  return '<option value="">Choose lamp / fitting (optional)</option>' +
+    LDGRP.map(g => '<optgroup label="' + esc(g) + '">' + LDREF.filter(r => r[0] === g).map(r => '<option value="' + esc(r[1]) + '"' + (r[1] === cur ? ' selected' : '') + '>' + esc(r[1]) + ' \u2014 ' + r[2] + ' W</option>').join('') + '</optgroup>').join('') +
+    (cur && !LDMAP[cur] ? '<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>' : '');
+}
+
 // ---------- Reference lists ----------
 const LUM_TYPES = ['Batten/strip', 'Pendant', 'Downlight', 'Spotlights', 'Bollard', 'Wall-mounted', 'Recessed', 'Other'];
 const LAMP_TECHS = ['LED', 'Fluorescent T8', 'Fluorescent T5', 'Halogen', 'Incandescent', 'Other'];
@@ -842,7 +905,7 @@ function ballastLossFor(b, tech) { return BALLAST_LOSS[BALLASTS.indexOf(resolveB
 // Recalculate the derived fields on an entry object (mutates and returns it)
 function recalcEntry(e) {
   const lamps = parseFloat(e.lamps) || 0;
-  const watt = parseFloat(e.watt) || 0;
+  const watt = effWatt(e).w;
   const qty = parseFloat(e.qty) || 0;
   const hours = parseFloat(e.hours) || 0;
   const daysWk = parseFloat(e.daysWk);
@@ -912,6 +975,12 @@ function paintNewEntry() {
         <div class="note">Ballast / driver loss is applied automatically (LED 0%, HF 8%, magnetic 20%, unknown 15%).</div>
       </div>
 
+      <div class="fld">
+        <label>Lamp / fitting reference (auto-fills wattage)</label>
+        <select id="fRef">${refSelectHtml(e.ref)}</select>
+        <div class="note">LED panels, battens, tubes, downlights, high bays and floods, plus existing fluorescent, CFL, halogen and HID lamps. Whole-fitting watts for integral LED; per-lamp watts for tubes and lamps.</div>
+      </div>
+
       <div class="grid2">
         <div class="fld">
           <label>Lamps per Luminaire</label>
@@ -919,9 +988,10 @@ function paintNewEntry() {
         </div>
         <div class="fld">
           <label>Lamp Wattage (W)</label>
-          <input id="fWatt" type="number" inputmode="decimal" step="0.1" value="${esc(e.watt || '')}" placeholder="e.g. 36">
+          <input id="fWatt" type="number" inputmode="decimal" step="0.1" value="${esc(e.watt || '')}" placeholder="${esc(LDMAP[e.ref] ? 'Auto: ' + LDMAP[e.ref].w + ' W' : 'e.g. 36')}">
         </div>
       </div>
+      <div class="note" id="wNote" style="font-weight:600;margin:-0.4rem 0 0.9rem">${esc(wattNote(e))}</div>
 
       <div class="fld ${e.qty ? 'ok' : 'rq'}">
         <label>No. of Luminaires</label>
@@ -1017,6 +1087,8 @@ function paintNewEntry() {
   const sync = () => {
     e.zone = $('fZone').value;
     e.type = $('fType').value;
+    const newRef = $('fRef').value;
+    if (newRef !== (e.ref || '')) { e.ref = newRef; if (newRef) { $('fTech').value = techForRef(newRef); } }
     e.tech = $('fTech').value;
     e.ballast = $('fBallast').value;
     e.lamps = $('fLamps').value;
@@ -1042,6 +1114,8 @@ function paintNewEntry() {
     $('ctrlOtherWrap').style.display = e.controls === 'Yes' && e.ctrlType === 'Other' ? 'block' : 'none';
 
     recalcEntry(e);
+    $('wNote').textContent = wattNote(e);
+    $('fWatt').placeholder = LDMAP[e.ref] ? 'Auto: ' + LDMAP[e.ref].w + ' W' : 'e.g. 36';
     $('cDays').textContent = e.days || '—';
     $('cLoad').textContent = e.load && parseFloat(e.load) ? e.load : '—';
     $('cBurn').textContent = e.burnHours && parseFloat(e.burnHours) ? e.burnHours : '—';
@@ -1083,7 +1157,7 @@ function paintNewEntry() {
 
 function exportCsv(sv) {
   const site = sites.find(s => s.id === V.siteId);
-  const rows = [['Site', 'Zone / Area', 'Type of Luminaire', 'Lamp Technology', 'Ballast / Driver Type', 'Lamps per Luminaire', 'Lamp Wattage (W)', 'No. of Luminaires', 'Measured Lux Level', 'Controls Fitted? (Y/N)', 'Type of Control', 'Hours per Day', 'Operating Pattern', 'Days per Week', 'Weeks per Year', 'Days per Year', 'Total Load (kW)', 'Annual Burn Hours', 'Annual Energy (kWh)', 'Comments']];
+  const rows = [['Site', 'Zone / Area', 'Type of Luminaire', 'Lamp Technology', 'Ballast / Driver Type', 'Lamps per Luminaire', 'Lamp Wattage (W)', 'No. of Luminaires', 'Measured Lux Level', 'Controls Fitted? (Y/N)', 'Type of Control', 'Hours per Day', 'Operating Pattern', 'Days per Week', 'Weeks per Year', 'Days per Year', 'Total Load (kW)', 'Annual Burn Hours', 'Annual Energy (kWh)', 'Comments', 'Wattage Source']];
   
   (sv.entries || []).forEach(e => {
     rows.push([
@@ -1093,7 +1167,7 @@ function exportCsv(sv) {
       e.tech || '',
       resolveBallast(e.ballast, e.tech),
       e.lamps || '',
-      e.watt || '',
+      (effWatt(e).src ? String(effWatt(e).w) : ''),
       e.qty || '',
       e.lux || '',
       e.controls === 'Yes' ? 'Y' : e.controls === 'No' ? 'N' : (e.controls || ''),
@@ -1106,7 +1180,8 @@ function exportCsv(sv) {
       e.load || '',
       e.burnHours || '',
       e.energy || '',
-      e.comments || ''
+      e.comments || '',
+      effWatt(e).src
     ]);
   });
   
@@ -1175,7 +1250,7 @@ async function fillWorkbook(sv) {
         setCell('C' + r, e.tech || '');
         setCell('D' + r, resolveBallast(e.ballast, e.tech));   // must match the template's lookup list exactly
         setCell('E' + r, num(e.lamps));
-        setCell('F' + r, num(e.watt));
+        setCell('F' + r, effWatt(e).src ? effWatt(e).w : num(e.watt));
         setCell('G' + r, num(e.qty));
         setCell('H' + r, num(e.lux));
         setCell('K' + r, ctrlYes ? 'Y' : e.controls === 'No' ? 'N' : '');

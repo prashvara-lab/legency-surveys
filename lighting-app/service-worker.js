@@ -1,4 +1,4 @@
-const CACHE_NAME = 'legency-lighting-v1';
+const CACHE_NAME = 'legency-lighting-v2';
 const URLS = ['/', '/index.html', '/manifest.webmanifest'];
 
 self.addEventListener('install', e => {
