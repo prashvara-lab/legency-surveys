@@ -1523,7 +1523,7 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     expanded.forEach((r, ri) => r.forEach((v, ci) => { if (v !== '') setCell(outSd, outDoc, colLetter(ci + 1) + (ri + 2), (ci === 6 && isPlainNum(v)) ? { t: 'n', v: parseFloat(v), fmt: 'General' } : { t: 's', v }, true); }));
 
     // Overview tab: surveyor + Lead Assessor details, only where the cell is empty
-    let overviewFilled = 0;
+    let overviewFilled = 0, surveyStartSet = false;
     if (paths['Overview']) {
       const ovDoc = await readXml(zip, paths['Overview']), ovSd = first(ovDoc.documentElement, 'sheetData');
       for (const [ref, val] of OVERVIEW_DEFAULTS) {
@@ -1531,6 +1531,11 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
         const v = c.getElementsByTagNameNS(NS, 'v')[0], is = c.getElementsByTagNameNS(NS, 'is')[0], f = c.getElementsByTagNameNS(NS, 'f')[0];
         if (f || is || (v && v.textContent !== '')) continue;
         setCell(ovSd, ovDoc, ref, { t: 's', v: val, fmt: 'General' }, true); overviewFilled++;
+      }
+      // Survey Start Date (B2): written only when a date is given, replacing whatever is there
+      if (opts && /^\d{4}-\d{2}-\d{2}$/.test(opts.surveyStart || '')) {
+        const [yy, mm, dd] = opts.surveyStart.split('-').map(Number);
+        setCell(ovSd, ovDoc, 'B2', { t: 'n', v: Math.round(Date.UTC(yy, mm - 1, dd) / 86400000) + 25569, fmt: 'General' }, true); surveyStartSet = true;
       }
       zip.file(paths['Overview'], serializer.serializeToString(ovDoc));
     }
@@ -1544,7 +1549,7 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     zip.file('xl/styles.xml', serializer.serializeToString(stDoc));
     zip.file('xl/workbook.xml', serializer.serializeToString(wbDoc));
     const blob = await zip.generateAsync({ type: opts.outputType === 'uint8array' ? 'uint8array' : 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.ms-excel.sheet.macroEnabled.12' });
-    return { blob, inputRows: rows.length, outputRows: expanded.length, siteName, master, expanded, sites, replacedRows, newRows: newRows.length, portfolio, inPortfolio, eso, overviewFilled };
+    return { blob, inputRows: rows.length, outputRows: expanded.length, siteName, master, expanded, sites, replacedRows, newRows: newRows.length, portfolio, inPortfolio, eso, overviewFilled, surveyStartSet };
   }
 
   // === 4. QA checklist pre-fill (Inspired "Energy Site Surveys QA Checklist": the "Energy Assessor" rows) ===
@@ -1765,12 +1770,14 @@ function openOnsiteSheet(sv){
   '<p style="font-size:.85rem;color:var(--soft);margin:0 0 .6rem"><b>Several sites for one client?</b> Run this once per site, each time picking the tool file this button last gave you. Each site is added below the ones already there; running the same site again replaces just that site.</p>'+
   '<label>1. Filled Site Data Collection workbook</label><div id="otA" style="font-size:.85rem;margin-bottom:.3rem"></div><input type="file" id="otF1" accept=".xlsm,.xlsx">'+
   '<label style="margin-top:.7rem">2. Inspired Energy Survey Tool (.xlsm)</label><input type="file" id="otF2" accept=".xlsm">'+
+  '<label style="margin-top:.7rem">Survey Start Date (written to the Overview tab; leave blank to keep what is there)</label><input type="date" id="otD">'+
   '<label style="margin-top:.7rem">Site name to write into the tool</label><input id="otN" list="otList" autocomplete="off"><datalist id="otList"></datalist>'+
   '<div id="otH" style="font-size:.78rem;color:var(--soft);margin:.2rem 0 .5rem">Use exactly the name on the tool\'s Portfolio tab (it can differ from the workbook, e.g. the workbook said "Fleming House - Preston" but the tool used "Fleming House"). Pick the tool file and the Portfolio site names appear as suggestions.</div>'+
   '<label style="display:flex;gap:.5rem;align-items:center;font-size:.85rem;margin:.2rem 0 .8rem"><input type="checkbox" id="otR" style="width:auto"> Start the tool\'s onsite data afresh (removes any other sites already in it)</label>'+
   '<div style="display:flex;gap:.5rem"><button class="gh" id="otX" style="flex:1">Cancel</button><button class="pri" id="otGo" style="flex:2">Build Survey Tool</button></div><div id="otMsg" style="font-size:.85rem;margin-top:.7rem;white-space:pre-wrap"></div></div>';
  document.body.appendChild(sb);
  $('otN').value=(gv('general',sv.gen,'Site Name')||'');
+ try{$('otD').value=localStorage.getItem(ssdKey(sv))||''}catch(e){}
  $('otA').textContent=LASTFILL?'Using the workbook you just filled ('+LASTFILL.name+'). Pick a file below only to use a different one.':'Pick the _FILLED.xlsm that "Fill real workbook" produced.';
  let PF=[];
  const hint=()=>{const h=$('otH'),n=$('otN').value.replace(/\s+/g,' ').trim();if(!PF.length)return;
@@ -1800,14 +1807,15 @@ function openOnsiteSheet(sv){
    const srcName=f1?f1.name:LASTFILL.name;
    if(answers===0){msg.textContent='Stopped: "'+srcName+'" has no answers in it (only the blank template). Pick the _FILLED.xlsm that "Fill real workbook" produced for this site, then try again.';$('otGo').disabled=false;return}
    const nm=$('otN').value.replace(/\s+/g,' ').trim()||m.siteName;
-   const r=await E.fillSurveyTool(b2,m,{siteName:nm,replaceAll:$('otR').checked});
+   const r=await E.fillSurveyTool(b2,m,{siteName:nm,replaceAll:$('otR').checked,surveyStart:$('otD').value});
+   if($('otD').value){try{localStorage.setItem(ssdKey(sv),$('otD').value)}catch(e){}}
    const nd=r.expanded.filter(x=>x[7]==='No Destination').length,w=[];
    if(!fy)w.push('⚠ The tool\'s Overview tab has no Report Start / End Date, so the financial year for file names could not be read.');
    if(answers<15)w.push('⚠ Only '+answers+' answers were found in "'+srcName+'". Check this is the filled workbook for this site.');
    if(r.inPortfolio===false)w.push('⚠ "'+nm+'" is not on the tool\'s Portfolio tab, so its rows will not link to rates or consumption. Check the spelling.');
    if(r.eso.eso7>r.eso.capacity||r.eso.eso8>r.eso.capacity)w.push('⚠ ESO-7 would need up to '+r.eso.eso7+' rows and ESO-8 up to '+r.eso.eso8+', but only '+r.eso.capacity+' rows (6–40) have formulas. Fill the formulas down in Excel after running the ESO-7 / ESO-8 macros.');
    dl(r.blob,f2.name.replace(/(_ONSITE_FILLED)?\.xlsm$/i,'')+'_ONSITE_FILLED.xlsm');
-   msg.textContent='Done. '+(r.replacedRows?'Replaced the '+r.replacedRows+' rows already there for this site. ':'')+r.newRows+' rows added for "'+nm+'", read from "'+srcName+'" ('+answers+' answers).'+(r.overviewFilled?'\nOverview tab: '+r.overviewFilled+' surveyor / Lead Assessor cells pre-filled (B8-B15, B28-B30; any already filled were left alone).':'')+(fy?'\nFinancial year from the tool\'s Report dates: '+fy+' (used to name the site files).':'')+'\nThe tool now holds '+r.sites.length+' site'+(r.sites.length>1?'s':'')+': '+r.sites.join(', ')+'.\n'+r.inputRows+' rows on Input Onsite Data, '+r.outputRows+' on Output Onsite Data ('+nd+' "No Destination", as the macro does). ESO-7 up to '+r.eso.eso7+' rows, ESO-8 up to '+r.eso.eso8+' (of '+r.eso.capacity+').'+(w.length?'\n\n'+w.join('\n'):'')+'\n\nOpen the file in Excel and let it recalculate. For the next site, pick THIS downloaded file as the tool.';
+   msg.textContent='Done. '+(r.replacedRows?'Replaced the '+r.replacedRows+' rows already there for this site. ':'')+r.newRows+' rows added for "'+nm+'", read from "'+srcName+'" ('+answers+' answers).'+(r.surveyStartSet?'\nSurvey Start Date set to '+$('otD').value.split('-').reverse().join('/')+'.':($('otD').value?'':'\n⚠ No Survey Start Date entered, so Overview B2 was left as it was.'))+(r.overviewFilled?'\nOverview tab: '+r.overviewFilled+' surveyor / Lead Assessor cells pre-filled (B8-B15, B28-B30; any already filled were left alone).':'')+(fy?'\nFinancial year from the tool\'s Report dates: '+fy+' (used to name the site files).':'')+'\nThe tool now holds '+r.sites.length+' site'+(r.sites.length>1?'s':'')+': '+r.sites.join(', ')+'.\n'+r.inputRows+' rows on Input Onsite Data, '+r.outputRows+' on Output Onsite Data ('+nd+' "No Destination", as the macro does). ESO-7 up to '+r.eso.eso7+' rows, ESO-8 up to '+r.eso.eso8+' (of '+r.eso.capacity+').'+(w.length?'\n\n'+w.join('\n'):'')+'\n\nOpen the file in Excel and let it recalculate. For the next site, pick THIS downloaded file as the tool.';
    toast('Downloaded filled Energy Survey Tool');
   }catch(e){console.error(e);msg.textContent='Could not build it: '+(e&&e.message?e.message:'see console')}
   $('otGo').disabled=false;
@@ -1859,6 +1867,7 @@ function openQaSheet(sv){
  };
 }
 // Inspired's file naming: "Inspired ESG_ESOS_Site Data Collection_<Company>_FY26_V3.5.6" (a site name is added so each site of one client has its own file)
+function ssdKey(sv){return 'ssd|'+String(gv('general',sv.gen,'Customer Name')||'').trim().toLowerCase()}
 function fyKey(sv){return 'fy|'+String(gv('general',sv.gen,'Customer Name')||'').trim().toLowerCase()}
 function sdcFileName(sv,file,fy){
  const clean=(x)=>String(x||'').replace(/[\\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
