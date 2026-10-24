@@ -1208,6 +1208,10 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
   const RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
   const SHEETS = ['General', 'Heating', 'DHW', 'Cooling', 'Ventilation', 'Lighting', 'Process', 'Catering', 'Leisure', 'Small Power', 'Other'];
   const parser = new DOMParser(), serializer = new XMLSerializer();
+  // Surveyor / Lead Assessor details written into every Energy Survey Tool's Overview tab when those cells are empty
+  // (same values as the Key Retirement tool). Edit here to change them.
+  const OVERVIEW_DEFAULTS = [['B8', 'Prashant Vara'], ['B9', 'Energy Consultant'], ['B10', 'Legency'], ['B11', 'Yes'], ['B12', 'Yes'], ['B13', '07982937818'], ['B14', '07982937818'], ['B15', 'prashvara@gmail.com'], ['B28', 'Prashant Vara'], ['B29', '0050462'], ['B30', 'Energy Institute']];
+
 
   const colNum = (L) => { let n = 0; for (const ch of L) n = n * 26 + ch.charCodeAt(0) - 64; return n; };
   const colLetter = (n) => { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
@@ -1518,6 +1522,19 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     const isPlainNum = (v) => /^-?(0|[1-9]\d*)(\.\d+)?$/.test(v) && Math.abs(parseFloat(v)) < 1e15;
     expanded.forEach((r, ri) => r.forEach((v, ci) => { if (v !== '') setCell(outSd, outDoc, colLetter(ci + 1) + (ri + 2), (ci === 6 && isPlainNum(v)) ? { t: 'n', v: parseFloat(v), fmt: 'General' } : { t: 's', v }, true); }));
 
+    // Overview tab: surveyor + Lead Assessor details, only where the cell is empty
+    let overviewFilled = 0;
+    if (paths['Overview']) {
+      const ovDoc = await readXml(zip, paths['Overview']), ovSd = first(ovDoc.documentElement, 'sheetData');
+      for (const [ref, val] of OVERVIEW_DEFAULTS) {
+        const c = cellEl(rowEl(ovSd, ovDoc, splitRef(ref)[1]), ovDoc, ref);
+        const v = c.getElementsByTagNameNS(NS, 'v')[0], is = c.getElementsByTagNameNS(NS, 'is')[0], f = c.getElementsByTagNameNS(NS, 'f')[0];
+        if (f || is || (v && v.textContent !== '')) continue;
+        setCell(ovSd, ovDoc, ref, { t: 's', v: val, fmt: 'General' }, true); overviewFilled++;
+      }
+      zip.file(paths['Overview'], serializer.serializeToString(ovDoc));
+    }
+
     // Ask Excel to recalculate everything the first time the file is opened
     const calc = wbDoc.getElementsByTagNameNS(NS, 'calcPr')[0];
     if (calc) calc.setAttribute('fullCalcOnLoad', '1');
@@ -1527,7 +1544,7 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     zip.file('xl/styles.xml', serializer.serializeToString(stDoc));
     zip.file('xl/workbook.xml', serializer.serializeToString(wbDoc));
     const blob = await zip.generateAsync({ type: opts.outputType === 'uint8array' ? 'uint8array' : 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.ms-excel.sheet.macroEnabled.12' });
-    return { blob, inputRows: rows.length, outputRows: expanded.length, siteName, master, expanded, sites, replacedRows, newRows: newRows.length, portfolio, inPortfolio, eso };
+    return { blob, inputRows: rows.length, outputRows: expanded.length, siteName, master, expanded, sites, replacedRows, newRows: newRows.length, portfolio, inPortfolio, eso, overviewFilled };
   }
 
   // === 4. QA checklist pre-fill (Inspired "Energy Site Surveys QA Checklist": the "Energy Assessor" rows) ===
@@ -1790,7 +1807,7 @@ function openOnsiteSheet(sv){
    if(r.inPortfolio===false)w.push('⚠ "'+nm+'" is not on the tool\'s Portfolio tab, so its rows will not link to rates or consumption. Check the spelling.');
    if(r.eso.eso7>r.eso.capacity||r.eso.eso8>r.eso.capacity)w.push('⚠ ESO-7 would need up to '+r.eso.eso7+' rows and ESO-8 up to '+r.eso.eso8+', but only '+r.eso.capacity+' rows (6–40) have formulas. Fill the formulas down in Excel after running the ESO-7 / ESO-8 macros.');
    dl(r.blob,f2.name.replace(/(_ONSITE_FILLED)?\.xlsm$/i,'')+'_ONSITE_FILLED.xlsm');
-   msg.textContent='Done. '+(r.replacedRows?'Replaced the '+r.replacedRows+' rows already there for this site. ':'')+r.newRows+' rows added for "'+nm+'", read from "'+srcName+'" ('+answers+' answers).'+(fy?'\nFinancial year from the tool\'s Report dates: '+fy+' (used to name the site files).':'')+'\nThe tool now holds '+r.sites.length+' site'+(r.sites.length>1?'s':'')+': '+r.sites.join(', ')+'.\n'+r.inputRows+' rows on Input Onsite Data, '+r.outputRows+' on Output Onsite Data ('+nd+' "No Destination", as the macro does). ESO-7 up to '+r.eso.eso7+' rows, ESO-8 up to '+r.eso.eso8+' (of '+r.eso.capacity+').'+(w.length?'\n\n'+w.join('\n'):'')+'\n\nOpen the file in Excel and let it recalculate. For the next site, pick THIS downloaded file as the tool.';
+   msg.textContent='Done. '+(r.replacedRows?'Replaced the '+r.replacedRows+' rows already there for this site. ':'')+r.newRows+' rows added for "'+nm+'", read from "'+srcName+'" ('+answers+' answers).'+(r.overviewFilled?'\nOverview tab: '+r.overviewFilled+' surveyor / Lead Assessor cells pre-filled (B8-B15, B28-B30; any already filled were left alone).':'')+(fy?'\nFinancial year from the tool\'s Report dates: '+fy+' (used to name the site files).':'')+'\nThe tool now holds '+r.sites.length+' site'+(r.sites.length>1?'s':'')+': '+r.sites.join(', ')+'.\n'+r.inputRows+' rows on Input Onsite Data, '+r.outputRows+' on Output Onsite Data ('+nd+' "No Destination", as the macro does). ESO-7 up to '+r.eso.eso7+' rows, ESO-8 up to '+r.eso.eso8+' (of '+r.eso.capacity+').'+(w.length?'\n\n'+w.join('\n'):'')+'\n\nOpen the file in Excel and let it recalculate. For the next site, pick THIS downloaded file as the tool.';
    toast('Downloaded filled Energy Survey Tool');
   }catch(e){console.error(e);msg.textContent='Could not build it: '+(e&&e.message?e.message:'see console')}
   $('otGo').disabled=false;
