@@ -539,7 +539,7 @@ function paint(){const sv=D[V.id];$('bar').style.display='flex';
   $('custNotes').oninput=()=>{rec.notes=$('custNotes').value;saveCust(key)};
   loadMedia($('main'));return}
  if(V.s==='sv'){$('crumb').innerHTML='<a id="bk">← All surveys</a> / '+esc(gv('general',sv.gen,'Site Name'));$('bk').onclick=()=>go('dash');
-  $('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="gh" id="ex">Export CSV</button><button class="gh" id="ph">Download photos &amp; notes</button><button class="gh" id="fw">Fill real workbook</button><button class="gh" id="ot">Fill Survey Tool</button><input type="file" id="fwFile" accept=".xlsm,.xlsx" style="display:none">';$('bb').onclick=()=>go('dash');$('ex').onclick=()=>exportCsv(sv);$('ph').onclick=()=>exportMedia(sv);$('fw').onclick=()=>$('fwFile').click();$('ot').onclick=()=>openOnsiteSheet(sv);$('fwFile').onchange=()=>{const f=$('fwFile').files[0];$('fwFile').value='';if(f)fillRealWorkbook(sv,f)};
+  $('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="gh" id="ex">Export CSV</button><button class="gh" id="ph">Download photos &amp; notes</button><button class="gh" id="fw">Fill real workbook</button><button class="gh" id="ot">Fill Survey Tool</button><button class="gh" id="qa">Fill QA checklist</button><input type="file" id="fwFile" accept=".xlsm,.xlsx" style="display:none">';$('bb').onclick=()=>go('dash');$('ex').onclick=()=>exportCsv(sv);$('ph').onclick=()=>exportMedia(sv);$('fw').onclick=()=>$('fwFile').click();$('ot').onclick=()=>openOnsiteSheet(sv);$('qa').onclick=()=>openQaSheet(sv);$('fwFile').onchange=()=>{const f=$('fwFile').files[0];$('fwFile').value='';if(f)fillRealWorkbook(sv,f)};
   const done=ALL.filter(s=>['g','n'].includes(status(sv,s))).length,st=gv('general',sv.gen,'Site Type');
   $('main').innerHTML=`<div class="sum"><b>${done} of ${ALL.length}</b> sections complete${st&&S.expected[st]?`<br>Expected for a ${esc(st).toLowerCase()} site: ${esc(S.expected[st])}`:''}</div>`+summaryHtml(sv)+`<div class="sec">Sections</div>`+ALL.map(s=>{const x=status(sv,s),m=s==='general'?miss('general',sv.gen).length:(sv.entries[s]||[]).reduce((a,e)=>a+miss(s,e).length,0),c=(sv.entries[s]||[]).length;
    return `<button class="row" data-s="${s}"><span class="dot ${x}"></span><span class="t">${s==='general'?'General (site, meters, zones)':S[s].label}<small>${ST[x]}${x==='a'||(x==='r'&&s==='general'&&m)?' — '+m+' required left':''}${s!=='general'&&c?' — '+c+' logged':''}</small></span></button>`}).join('');
@@ -1530,7 +1530,199 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     return { blob, inputRows: rows.length, outputRows: expanded.length, siteName, master, expanded, sites, replacedRows, newRows: newRows.length, portfolio, inPortfolio, eso };
   }
 
-  return { masterFromSdc, expandZones, fillSurveyTool, portfolioSites, esoRowEstimate, cstr, clean };
+  // === 4. QA checklist pre-fill (Inspired "Energy Site Surveys QA Checklist": the "Energy Assessor" rows) ===
+  // Same rules as qa_prefill.py, tested against Inspired's completed Key Retirement checklist (93 of 93 filled rows identical).
+  const QA_SECTION_TAB = { 'General Tab': 'General', 'Heating Tab': 'Heating', 'Domestic Hot Water (DHW) Tab': 'DHW', 'Cooling Tab': 'Cooling', 'Ventilation Tab': 'Ventilation', 'Lighting Tab': 'Lighting', 'Process Tab': 'Process', 'Catering Tab': 'Catering', 'Leisure Tab': 'Leisure', 'Small Power Tab': 'Small Power', 'Other Tab': 'Other' };
+  const QA_COMMON = new Set(['General and Structure', 'Controls & Operation']);
+  const QA_MANUAL = new Set(['Evidence Pack', 'Energy Saving Opportunities (ESOs)']);
+  const isBlank = (v) => v === null || v === undefined || (typeof v === 'string' && v.trim() === '');
+  const hasEntry = (x) => !!x && !isBlank(x.v) && !(x.t === 'n' && x.v === 0); // a bare 0 (e.g. Annualised Hours of an unused block) is not an entry
+  const txt = (sh, ref) => { const c = sh && sh.cells.get(ref); return c && !isBlank(c.v) ? String(c.v) : null; };
+  const serialOf = (y, m, d) => Math.round((Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000);
+  function dateSerial(x) { // an Excel serial, or "dd/mm/yyyy" / "yyyy-mm-dd" text
+    if (!x) return null;
+    if (x.t === 'n' && x.v > 20000) return Math.floor(x.v);
+    const s = String(x.v).trim(); let m;
+    if ((m = /^(\d{1,2})[\/.](\d{1,2})[\/.](\d{4})$/.exec(s))) return serialOf(+m[3], +m[2], +m[1]);
+    if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s))) return serialOf(+m[1], +m[2], +m[3]);
+    return null;
+  }
+
+  async function qaReadSdc(buf, fileName) {
+    const zip = await JSZip.loadAsync(buf);
+    const { paths } = await sheetPaths(zip);
+    if (!paths['General']) throw new Error('"' + fileName + '" does not look like the Inspired Site Data Collection workbook (no "General" sheet).');
+    const sst = await sharedStrings(zip), fmtOf = await styleFormats(zip);
+    const info = { file: fileName, tabs: {}, masterRows: 0, zones: null, surveyDate: null, site: null };
+    const gen = await readSheet(zip, paths['General'], sst, fmtOf);
+    for (let r = 2; r <= gen.maxR; r++) {
+      const label = txt(gen, 'D' + r);
+      if (label === 'Site Name') { const v = valueOf(gen, 'F' + r); info.site = v ? String(v.v) : null; }
+      if (label === 'Survey Date') info.surveyDate = dateSerial(valueOf(gen, 'F' + r));
+    }
+    if (paths['Setup']) {
+      const s = await readSheet(zip, paths['Setup'], sst, fmtOf);
+      for (let r = 1; r < 30 && info.zones === null; r++) {
+        let isZ = false; for (let c = 1; c <= 5; c++) if ((txt(s, colLetter(c) + r) || '').trim() === 'Number of Zones') isZ = true;
+        if (!isZ) continue;
+        for (let c = 1; c <= 7; c++) { const v = valueOf(s, colLetter(c) + r); if (v && v.t === 'n' && v.v > 0) { info.zones = Math.floor(v.v); break; } if (v && /^\d+$/.test(String(v.v).trim())) { info.zones = +String(v.v).trim(); break; } }
+      }
+    }
+    if (paths['Master Output']) {
+      const mo = await readSheet(zip, paths['Master Output'], sst, fmtOf); const rowsSeen = new Set();
+      mo.cells.forEach((c, ref) => { const rn = splitRef(ref)[1]; if (rn >= 2 && !isBlank(c.v)) rowsSeen.add(rn); });
+      info.masterRows = rowsSeen.size;
+    }
+    for (const n of SHEETS) {
+      if (!paths[n]) continue;
+      const sh = await readSheet(zip, paths[n], sst, fmtOf);
+      let mand = 0, filled = 0; const blocks = new Map();
+      for (let r = 2; r <= sh.maxR; r++) {
+        const st = valueOf(sh, 'A' + r), sysn = valueOf(sh, 'B' + r);
+        if (isBlank(st && st.v) && isBlank(sysn && sysn.v)) continue;
+        let any = false; for (let c = 6; c <= sh.maxC && !any; c++) any = hasEntry(valueOf(sh, colLetter(c) + r));
+        const title = txt(sh, 'C' + r) || '';
+        const key = (sysn && !isBlank(sysn.v) ? String(sysn.v).trim() : '') + '\u0001' + title.trim();
+        if (!blocks.has(key)) blocks.set(key, { any: false, gaps: [] });
+        const blk = blocks.get(key); if (any) blk.any = true;
+        if (String(st ? st.v : '').trim().toLowerCase() !== 'mandatory') continue;
+        mand++; if (any) filled++; else blk.gaps.push({ row: r, title: txt(sh, 'C' + r) || (sysn ? String(sysn.v) : ''), desc: txt(sh, 'D' + r) || '' });
+      }
+      const gaps = []; blocks.forEach(b => { if (b.any) b.gaps.forEach(g => gaps.push(g)); });
+      info.tabs[n] = { mandatory: mand, filled, gaps };
+    }
+    return info;
+  }
+
+  async function qaReadTool(buf) {
+    const zip = await JSZip.loadAsync(buf);
+    const { paths } = await sheetPaths(zip);
+    const sst = await sharedStrings(zip), fmtOf = await styleFormats(zip);
+    const out = { overview: {}, eso: {} };
+    if (paths['Overview']) {
+      const o = await readSheet(zip, paths['Overview'], sst, fmtOf);
+      for (let r = 1; r < 60; r++) { const k = txt(o, 'A' + r); if (k) out.overview[k.trim()] = valueOf(o, 'B' + r); }
+    }
+    for (const name of Object.keys(paths)) {
+      const m = /^ESO-(\d+)$/.exec(name); if (!m) continue;
+      const sh = await readSheet(zip, paths[name], sst, fmtOf); let n = 0;
+      for (let r = 6; r <= sh.maxR; r++) { const v = txt(sh, 'D' + r); if (v && v.trim() !== 'No Data') n++; }
+      out.eso[+m[1]] = n;
+    }
+    return out;
+  }
+
+  // sdcList: [{buf, name}], toolBuf (optional), opts: { name, date: 'YYYY-MM-DD', signFlagged }
+  async function fillQaChecklist(chkBuf, sdcList, toolBuf, opts) {
+    opts = opts || {};
+    const who = (opts.name || '').trim() || 'Prashant Vara';
+    const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(opts.date || '');
+    const now = new Date(), when = dm ? serialOf(+dm[1], +dm[2], +dm[3]) : serialOf(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    const sdcs = []; for (const s of sdcList) sdcs.push(await qaReadSdc(s.buf, s.name));
+    const est = toolBuf ? await qaReadTool(toolBuf) : null;
+    const zip = await JSZip.loadAsync(chkBuf);
+    const { wbDoc, paths } = await sheetPaths(zip);
+    const SH = 'Site_Data_Collection_Template', DL = 'ESOS Energy Audit Delivery', ES = 'Energy_Survey_Tool';
+    if (!paths[SH]) throw new Error('This does not look like the Inspired Energy Site Surveys QA Checklist (no "' + SH + '" sheet).');
+    const sst = await sharedStrings(zip), fmtOf = await styleFormats(zip);
+    const docs = {}, shs = {};
+    for (const n of [SH, DL, ES]) if (paths[n]) { docs[n] = await readXml(zip, paths[n]); shs[n] = await readSheet(zip, paths[n], sst, fmtOf); }
+
+    function rowEl(doc, n) {
+      const sd = first(doc.documentElement, 'sheetData'); let prev = null;
+      for (const r of kids(sd, 'row')) { const rn = +r.getAttribute('r'); if (rn === n) return r; if (rn > n) { prev = r; break; } }
+      const el = doc.createElementNS(NS, 'row'); el.setAttribute('r', n); if (prev) sd.insertBefore(el, prev); else sd.appendChild(el); return el;
+    }
+    function cellEl(doc, ref) {
+      const row = rowEl(doc, splitRef(ref)[1]), cn = splitRef(ref)[0]; let prev = null;
+      for (const c of kids(row, 'c')) { const k = splitRef(c.getAttribute('r'))[0]; if (k === cn) return c; if (k > cn) { prev = c; break; } }
+      const el = doc.createElementNS(NS, 'c'); el.setAttribute('r', ref); if (prev) row.insertBefore(el, prev); else row.appendChild(el); return el;
+    }
+    const clear = (c) => { Array.from(c.childNodes).forEach(n => c.removeChild(n)); c.removeAttribute('t'); };
+    const setText = (sheet, ref, s) => { const c = cellEl(docs[sheet], ref); clear(c); c.setAttribute('t', 'inlineStr'); const is = docs[sheet].createElementNS(NS, 'is'), t = docs[sheet].createElementNS(NS, 't'); t.setAttribute('xml:space', 'preserve'); t.textContent = s; is.appendChild(t); c.appendChild(is); };
+    const setDate = (sheet, ref, serial) => { const c = cellEl(docs[sheet], ref); clear(c); const v = docs[sheet].createElementNS(NS, 'v'); v.textContent = String(serial); c.appendChild(v); return c; };
+    const T = (sheet, ref) => txt(shs[sheet], ref);
+
+    // tab status across all sites
+    const status = {};
+    for (const n of SHEETS) {
+      const used = sdcs.some(s => s.tabs[n] && s.tabs[n].filled > 0);
+      const gaps = used ? sdcs.flatMap(s => ((s.tabs[n] && s.tabs[n].gaps) || []).map(g => ({ site: s.site || s.file, ...g }))) : [];
+      status[n] = { state: used ? (gaps.length ? 'used_gaps' : 'used_clean') : 'na', gaps };
+    }
+    const allClean = SHEETS.every(n => status[n].state !== 'used_gaps');
+    const res = { signed: 0, na: 0, left: [], tabs: status, estLeft: [], sites: sdcs.map(s => s.site || s.file), notes: [] };
+
+    // --- Site_Data_Collection_Template sheet
+    let cur = null;
+    for (let r = 5; r <= shs[SH].maxR; r++) {
+      const who_ = T(SH, 'E' + r), b = T(SH, 'B' + r), c = T(SH, 'C' + r), d = T(SH, 'D' + r);
+      if (c) cur = c.trim(); else if (b) cur = b.trim();
+      if (who_ !== 'Energy Assessor' || !d) continue;
+      const short = d.replace(/\n/g, ' ').slice(0, 90);
+      let sign = false, na = false, why = '';
+      if (QA_SECTION_TAB[cur]) {
+        const st = status[QA_SECTION_TAB[cur]];
+        if (st.state === 'na') na = true;
+        else if (st.state === 'used_clean' || opts.signFlagged) sign = true;
+        else why = st.gaps.length + ' Mandatory field(s) blank on the ' + QA_SECTION_TAB[cur] + ' tab';
+      } else if (cur === 'Setup') { sign = sdcs.every(s => s.zones); why = sign ? '' : 'Number of Zones on the Setup tab is blank'; }
+      else if (cur === 'File Checks') {
+        if (r === 5 || !d.includes('saved in line')) sign = true;
+        else {
+          const bad = sdcs.filter(s => !/^Inspired[_ ]ESG[_ ]ESOS[_ ]Site[_ ]Data[_ ]Collection[_ ].+FY\d\d/.test(s.file.replace(/^[0-9a-f]{8}-/, '').replace(/ /g, '_')));
+          sign = !bad.length; why = sign ? '' : 'file name does not follow the Inspired naming: ' + bad.map(s => s.file).join(', ');
+        }
+      } else if (QA_COMMON.has(cur)) { sign = allClean || !!opts.signFlagged; why = sign ? '' : 'some energy-use tabs have blank Mandatory fields'; }
+      else if (cur === 'Master Output Tab') {
+        const hasMo = sdcs.every(s => s.masterRows > 0);
+        sign = hasMo && (allClean || !!opts.signFlagged);
+        why = sign ? '' : (!hasMo ? 'Master Output is empty - run the Build Master Output macro' : 'Mandatory fields still blank');
+      } else if (QA_MANUAL.has(cur)) why = 'needs your own check (photos / judgement)';
+      else why = 'not covered';
+      if (sign || na) { setText(SH, 'F' + r, who); if (na) setText(SH, 'G' + r, 'Not Applicable'); setDate(SH, 'H' + r, when); if (na) res.na++; else res.signed++; }
+      else res.left.push({ row: r, section: cur, text: short, why });
+    }
+
+    // --- Delivery sheet
+    if (docs[DL]) {
+      for (let r = 5; r < 14; r++) {
+        const k = T(DL, 'B' + r);
+        if ((k === 'Lead ESOS Assessor' || k === 'Energy Assessor') && !T(DL, 'C' + r)) setText(DL, 'C' + r, who);
+        if (k === 'Energy Assessor' && !T(DL, 'D' + r)) setDate(DL, 'D' + r, when);
+        if (k === 'Client Energy Audit Date' && !T(DL, 'D' + r)) {
+          const ds = sdcs.map(s => s.surveyDate).filter(x => x);
+          if (ds.length) { const c = setDate(DL, 'D' + r, Math.max(...ds)); const d7 = shs[DL].cells.get('D7'); const d7el = d7 ? Array.from(docs[DL].getElementsByTagNameNS(NS, 'c')).find(e => e.getAttribute('r') === 'D7') : null; if (d7el && d7el.getAttribute('s')) c.setAttribute('s', d7el.getAttribute('s')); }
+        }
+      }
+    }
+
+    // --- Energy_Survey_Tool sheet (needs the Survey Tool)
+    if (est && docs[ES]) {
+      const ov = est.overview, has = (...ks) => ks.every(k => ov[k] && !isBlank(ov[k].v));
+      for (let r = 4; r <= shs[ES].maxR; r++) {
+        if (T(ES, 'D' + r) !== 'Energy Assessor') continue;
+        const c = (T(ES, 'C' + r) || '').replace(/\n/g, ' ');
+        let sign = false, na = false, why = '';
+        if (c.includes('Survey Start Date')) { sign = has('Survey Start Date', 'Report Start Date', 'Report End Date'); why = 'Survey Start / Report dates not all populated on the Overview tab'; }
+        else if (c.includes("Surveyor's details")) { sign = has("Surveyor's Name", "Surveyor's Position", 'Company', 'Email'); why = "Surveyor's details incomplete on the Overview tab"; }
+        else if (c.includes('Lead Assessor details')) { sign = has('Registration Number', 'Certifying Body'); why = 'Lead Assessor registration number / certifying body blank on the Overview tab'; }
+        else {
+          const m = /For (ESO-\d+)/.exec(c);
+          if (m) { const n = +m[1].slice(4); if (n in est.eso && est.eso[n] === 0) na = true; else why = 'ESO tab has entries: needs your check'; }
+          else why = 'needs your own check';
+        }
+        if (sign || na) { setText(ES, 'E' + r, who); if (na) setText(ES, 'F' + r, 'Not Applicable'); setDate(ES, 'G' + r, when); if (na) res.na++; else res.signed++; }
+        else res.estLeft.push({ row: r, text: c.slice(0, 90), why });
+      }
+    } else if (!est) res.notes.push('No Energy Survey Tool was given, so the Energy_Survey_Tool sheet was not touched.');
+
+    for (const n of Object.keys(docs)) zip.file(paths[n], serializer.serializeToString(docs[n]));
+    res.blob = await zip.generateAsync({ type: opts.outputType === 'uint8array' ? 'uint8array' : 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    return res;
+  }
+
+  return { masterFromSdc, expandZones, fillSurveyTool, portfolioSites, esoRowEstimate, cstr, clean, fillQaChecklist };
 }
 
 const onsiteEngine=()=>makeOnsiteEngine({JSZip:typeof JSZip!=='undefined'?JSZip:undefined,DOMParser,XMLSerializer});
@@ -1587,6 +1779,51 @@ function openOnsiteSheet(sv){
    toast('Downloaded filled Energy Survey Tool');
   }catch(e){console.error(e);msg.textContent='Could not build it: '+(e&&e.message?e.message:'see console')}
   $('otGo').disabled=false;
+ };
+}
+function openQaSheet(sv){
+ const old=document.getElementById('qaSheet');if(old)old.remove();
+ const sb=document.createElement('div');sb.className='sheet-b o';sb.id='qaSheet';
+ let nm='Prashant Vara';try{nm=localStorage.getItem('qaName')||nm}catch(e){}
+ const today=new Date(),iso=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+ sb.innerHTML='<div class="sheet"><h3 style="margin:0 0 .4rem">Fill the QA checklist</h3>'+
+  '<p style="font-size:.85rem;color:var(--soft);margin:0 0 .6rem">Fills the <b>Energy Assessor</b> rows of Inspired\'s QA checklist from your completed workbooks. A row is signed only if its check passes; anything missing is listed so you can fix it first. Photo and ESO-judgement rows are always left for you.</p>'+
+  '<label>1. Inspired QA checklist (.xlsx)</label><input type="file" id="qaF0" accept=".xlsx">'+
+  '<label style="margin-top:.7rem">2. Filled Site Data Collection workbook(s) (.xlsm) — select every site for this client</label><div id="qaA" style="font-size:.85rem;margin-bottom:.3rem"></div><input type="file" id="qaF1" accept=".xlsm,.xlsx" multiple>'+
+  '<label style="margin-top:.7rem">3. Energy Survey Tool (.xlsm) — optional, fills the Survey Tool part of the checklist</label><input type="file" id="qaF2" accept=".xlsm">'+
+  '<label style="margin-top:.7rem">Your name on the checklist</label><input id="qaN" autocomplete="off">'+
+  '<label style="margin-top:.7rem">Date</label><input id="qaD" type="date">'+
+  '<label style="display:flex;gap:.5rem;align-items:center;font-size:.85rem;margin:.6rem 0 .8rem"><input type="checkbox" id="qaS" style="width:auto"> I have reviewed the flagged items — sign those rows too</label>'+
+  '<div style="display:flex;gap:.5rem"><button class="gh" id="qaX" style="flex:1">Cancel</button><button class="pri" id="qaGo" style="flex:2">Fill QA checklist</button></div><div id="qaMsg" style="font-size:.85rem;margin-top:.7rem;white-space:pre-wrap"></div></div>';
+ document.body.appendChild(sb);
+ $('qaN').value=nm;$('qaD').value=iso;
+ $('qaA').textContent=LASTFILL?'Last workbook you filled: '+LASTFILL.name+'. Add it below with any other sites (files are not picked automatically).':'Pick the _FILLED.xlsm file for each site.';
+ sb.onclick=e=>{if(e.target===sb)sb.remove()};$('qaX').onclick=()=>sb.remove();
+ $('qaGo').onclick=async()=>{
+  const msg=$('qaMsg'),f0=$('qaF0').files[0],fs=Array.from($('qaF1').files),f2=$('qaF2').files[0];
+  if(!f0){msg.textContent='Pick the QA checklist first.';return}
+  if(!fs.length){msg.textContent='Pick at least one filled Site Data Collection workbook.';return}
+  if(typeof JSZip==='undefined'){msg.textContent='Zip library not loaded — check your internet connection and try again.';return}
+  const name=$('qaN').value.trim()||'Prashant Vara';try{localStorage.setItem('qaName',name)}catch(e){}
+  $('qaGo').disabled=true;msg.textContent='Working… this can take up to a minute.';
+  try{
+   const E=onsiteEngine(),sdcs=[];
+   for(const f of fs)sdcs.push({name:f.name,buf:await f.arrayBuffer()});
+   const r=await E.fillQaChecklist(await f0.arrayBuffer(),sdcs,f2?await f2.arrayBuffer():null,{name,date:$('qaD').value,signFlagged:$('qaS').checked});
+   const out=f0.name.replace(/(_PREFILLED)?\.xlsx$/i,'')+'_PREFILLED.xlsx';
+   dl(r.blob,out);
+   const L=[];
+   L.push('Done. '+r.signed+' rows signed, '+r.na+' marked Not Applicable, '+(r.left.length+r.estLeft.length)+' left for you.');
+   L.push('Sites read: '+r.sites.join(', ')+'.');
+   const gaps=[];Object.keys(r.tabs).forEach(t=>{const x=r.tabs[t];if(x.state==='used_gaps')x.gaps.forEach(g=>gaps.push(t+' ('+g.site+'): '+g.title+' / '+g.desc))});
+   if(gaps.length){L.push('\nFix these in the Site Data Collection workbook, or tick the box above once you have confirmed they do not apply:');gaps.slice(0,25).forEach(g=>L.push('• '+g));if(gaps.length>25)L.push('• …and '+(gaps.length-25)+' more')}
+   const other=r.left.filter(x=>!/Mandatory field/.test(x.why)&&x.why!=='some energy-use tabs have blank Mandatory fields');
+   if(other.length){L.push('\nAlso left blank:');const seen=new Set();other.forEach(x=>{const k=x.why;if(seen.has(k))return;seen.add(k);const n=other.filter(y=>y.why===k).length;L.push('• '+k+(n>1?' ('+n+' rows)':''))})}
+   if(r.estLeft.length){L.push('\nEnergy Survey Tool part — '+r.estLeft.length+' rows left. Needing action:');r.estLeft.filter(x=>x.why!=='needs your own check'&&!/needs your check/.test(x.why)).forEach(x=>L.push('• '+x.why));L.push('• The rest are ESO and report checks that need your own judgement.')}
+   r.notes.forEach(n=>L.push('\n'+n));
+   msg.textContent=L.join('\n');toast('Downloaded pre-filled QA checklist');
+  }catch(e){console.error(e);msg.textContent='Could not fill it: '+(e&&e.message?e.message:'see console')}
+  $('qaGo').disabled=false;
  };
 }
 async function fillRealWorkbook(sv,file){
