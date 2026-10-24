@@ -1376,6 +1376,39 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     return out;
   }
 
+  // Site names the tool knows about (Portfolio tab, "Site Name" column). Onsite data only links to the
+  // rate/consumption lookups when its site name matches one of these exactly.
+  async function portfolioSites(estBuf) {
+    const zip = await JSZip.loadAsync(estBuf);
+    const { paths } = await sheetPaths(zip);
+    if (!paths['Portfolio']) return [];
+    const sst = await sharedStrings(zip), fmtOf = await styleFormats(zip);
+    const sh = await readSheet(zip, paths['Portfolio'], sst, fmtOf);
+    let col = 0;
+    for (let c = sh.minC; c <= sh.maxC; c++) { const h = valueOf(sh, colLetter(c) + '1'); if (h && /^site name$/i.test(String(h.v).trim())) { col = c; break; } }
+    if (!col) return [];
+    const seen = [], set = new Set();
+    for (let r = 2; r <= sh.maxR; r++) { const x = valueOf(sh, colLetter(col) + r); const n = x ? String(x.v).replace(/\s+/g, ' ').trim() : ''; if (n && !set.has(n)) { set.add(n); seen.push(n); } }
+    return seen;
+  }
+  const ESO8_KEYS = new Set(['fuel', 'type', 'boiler input power kw', 'input power kw', 'heater electrical power kw', 'boiler output power kw', 'output power kw', 'number boilers', 'number', 'number of heaters', 'quantity', 'quantity of boilers', 'approximate age years', 'approximate age', 'annualised hours']);
+  const ESO7_KEYS = new Set(['type of lamp', 'lamp type', 'lamps per luminaire', 'wattage per lamp w', 'no of luminaires', 'number of luminaires', 'annualised hours', 'annual operating hours']);
+  const normDesc = (d) => String(d).trim().toLowerCase().replace(/[.()]/g, '').replace(/ {2,}/g, ' ');
+  function normTitle(t) {
+    t = String(t).trim(); const m = /^controls system (\d+)$/i.exec(t); if (m) return 'Wet / Radiant System ' + m[1];
+    if (t.toLowerCase() === 'electric system - controls') return 'Electric System'; return t;
+  }
+  // How many rows BuildESO7 / BuildESO8 would write (upper estimate). ESO-7 and ESO-8 only have formulas on rows 6-40.
+  function esoRowEstimate(expanded) {
+    const g7 = new Set(), g8 = new Set();
+    for (const r of expanded) {
+      const [site, , , title, desc, zone, , eso] = r;
+      if (eso === 'ESO-7' && /^Type of Lighting/.test(title) && ESO7_KEYS.has(normDesc(desc))) g7.add(site + '||' + zone + '||' + title);
+      if (eso === 'ESO-8') { const nt = normTitle(title); if (nt === 'Electric System' || ESO8_KEYS.has(normDesc(desc))) g8.add(site + '||' + zone + '||' + nt); }
+    }
+    return { eso7: g7.size, eso8: g8.size, capacity: 35 };
+  }
+
   // === 3. write into the Energy Survey Tool ===
   async function fillSurveyTool(estBuf, master, opts) {
     opts = opts || {};
@@ -1384,9 +1417,32 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     const inPath = paths['Input Onsite Data'], outPath = paths['Output Onsite Data'];
     if (!inPath || !outPath) throw new Error('This does not look like the Inspired Energy Survey Tool (no Input/Output Onsite Data sheets).');
     const siteName = opts.siteName != null && opts.siteName !== '' ? String(opts.siteName) : master.siteName;
-    const header = master.header.map((h, i) => i === 0 ? h : h);
-    const rows = master.rows.map(r => { const x = r.slice(); x[0] = { t: 's', v: siteName, fmt: 'General' }; return x; });
-    const expanded = expandZones(header, rows).map(r => { r[0] = clean({ t: 's', v: siteName }); return r; });
+    const newRows = master.rows.map(r => { const x = r.slice(); x[0] = { t: 's', v: siteName, fmt: 'General' }; return x; });
+    // Several sites: Inspired's instruction is to paste each site's Master Output into Input Onsite Data one below another.
+    // Existing sites already in the tool are kept; the same site run again is replaced rather than duplicated.
+    let header = master.header.slice(), keptRows = [], replacedRows = 0;
+    if (!opts.replaceAll) {
+      const sst0 = await sharedStrings(zip), fmtOf0 = await styleFormats(zip);
+      const ex = await readSheet(zip, inPath, sst0, fmtOf0);
+      if (ex.maxR >= 2) {
+        const exHdr = []; for (let c = 1; c <= ex.maxC; c++) exHdr.push(valueOf(ex, colLetter(c) + '1'));
+        const norm = (x) => clean(x).toLowerCase();
+        if (exHdr.length > header.length) { for (let c = header.length; c < exHdr.length; c++) header.push(exHdr[c]); }
+        for (let r = 2; r <= ex.maxR; r++) {
+          const row = []; for (let c = 1; c <= ex.maxC; c++) row.push(valueOf(ex, colLetter(c) + r));
+          if (!row[0] || clean(row[0]) === '') continue;
+          if (norm(row[0]) === norm({ t: 's', v: siteName })) { replacedRows++; continue; }
+          keptRows.push(row);
+        }
+      }
+    }
+    const W = header.length;
+    const rows = keptRows.concat(newRows).map(r => { const x = r.slice(); while (x.length < W) x.push(null); x.length = W; return x; });
+    const expanded = expandZones(header, rows);
+    const sites = []; rows.forEach(r => { const n = clean(r[0]); if (n && !sites.includes(n)) sites.push(n); });
+    const portfolio = await portfolioSites(estBuf);
+    const inPortfolio = portfolio.length ? portfolio.includes(clean({ t: 's', v: siteName })) : null;
+    const eso = esoRowEstimate(expanded);
 
     // --- styles: append number-format xfs we need
     const stDoc = await readXml(zip, 'xl/styles.xml');
@@ -1471,10 +1527,10 @@ function makeOnsiteEngine({ JSZip, DOMParser, XMLSerializer }) {
     zip.file('xl/styles.xml', serializer.serializeToString(stDoc));
     zip.file('xl/workbook.xml', serializer.serializeToString(wbDoc));
     const blob = await zip.generateAsync({ type: opts.outputType === 'uint8array' ? 'uint8array' : 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.ms-excel.sheet.macroEnabled.12' });
-    return { blob, inputRows: rows.length, outputRows: expanded.length, siteName, master, expanded };
+    return { blob, inputRows: rows.length, outputRows: expanded.length, siteName, master, expanded, sites, replacedRows, newRows: newRows.length, portfolio, inPortfolio, eso };
   }
 
-  return { masterFromSdc, expandZones, fillSurveyTool, cstr, clean };
+  return { masterFromSdc, expandZones, fillSurveyTool, portfolioSites, esoRowEstimate, cstr, clean };
 }
 
 const onsiteEngine=()=>makeOnsiteEngine({JSZip:typeof JSZip!=='undefined'?JSZip:undefined,DOMParser,XMLSerializer});
@@ -1484,14 +1540,28 @@ function openOnsiteSheet(sv){
  const sb=document.createElement('div');sb.className='sheet-b o';sb.id='otSheet';
  sb.innerHTML='<div class="sheet"><h3 style="margin:0 0 .4rem">Fill the Energy Survey Tool</h3>'+
   '<p style="font-size:.85rem;color:var(--soft);margin:0 0 .6rem">Does what the two Inspired macros do (Master Output, then Expand Onsite Zones) and writes the result into the Energy Survey Tool\'s <b>Input Onsite Data</b> and <b>Output Onsite Data</b> tabs. Nothing else in the tool is touched.</p>'+
+  '<p style="font-size:.85rem;color:var(--soft);margin:0 0 .6rem"><b>Several sites for one client?</b> Run this once per site, each time picking the tool file this button last gave you. Each site is added below the ones already there; running the same site again replaces just that site.</p>'+
   '<label>1. Filled Site Data Collection workbook</label><div id="otA" style="font-size:.85rem;margin-bottom:.3rem"></div><input type="file" id="otF1" accept=".xlsm,.xlsx">'+
   '<label style="margin-top:.7rem">2. Inspired Energy Survey Tool (.xlsm)</label><input type="file" id="otF2" accept=".xlsm">'+
-  '<label style="margin-top:.7rem">Site name to write into the tool</label><input id="otN">'+
-  '<div style="font-size:.78rem;color:var(--soft);margin:.2rem 0 .8rem">Use exactly the name the tool expects for this site (it can differ from the workbook, e.g. the workbook said "Fleming House - Preston" but the tool used "Fleming House").</div>'+
+  '<label style="margin-top:.7rem">Site name to write into the tool</label><input id="otN" list="otList" autocomplete="off"><datalist id="otList"></datalist>'+
+  '<div id="otH" style="font-size:.78rem;color:var(--soft);margin:.2rem 0 .5rem">Use exactly the name on the tool\'s Portfolio tab (it can differ from the workbook, e.g. the workbook said "Fleming House - Preston" but the tool used "Fleming House"). Pick the tool file and the Portfolio site names appear as suggestions.</div>'+
+  '<label style="display:flex;gap:.5rem;align-items:center;font-size:.85rem;margin:.2rem 0 .8rem"><input type="checkbox" id="otR" style="width:auto"> Start the tool\'s onsite data afresh (removes any other sites already in it)</label>'+
   '<div style="display:flex;gap:.5rem"><button class="gh" id="otX" style="flex:1">Cancel</button><button class="pri" id="otGo" style="flex:2">Build Survey Tool</button></div><div id="otMsg" style="font-size:.85rem;margin-top:.7rem;white-space:pre-wrap"></div></div>';
  document.body.appendChild(sb);
  $('otN').value=(gv('general',sv.gen,'Site Name')||'');
  $('otA').textContent=LASTFILL?'Using the workbook you just filled ('+LASTFILL.name+'). Pick a file below only to use a different one.':'Pick the _FILLED.xlsm that "Fill real workbook" produced.';
+ let PF=[];
+ const hint=()=>{const h=$('otH'),n=$('otN').value.replace(/\s+/g,' ').trim();if(!PF.length)return;
+  if(!n){h.textContent='Choose one of the '+PF.length+' Portfolio sites.';h.style.color='var(--soft)';return}
+  if(PF.includes(n)){h.textContent='✓ Matches a site on the tool\'s Portfolio tab.';h.style.color='var(--ok,#2a7a3b)';return}
+  const near=PF.find(p=>p.toLowerCase()===n.toLowerCase())||PF.find(p=>p.toLowerCase().includes(n.toLowerCase())||n.toLowerCase().includes(p.toLowerCase()));
+  h.textContent='✗ Not on the tool\'s Portfolio tab'+(near?' — did you mean "'+near+'"?':'.')+' The rate and consumption lookups will not find it.';h.style.color='var(--req,#b3261e)'};
+ $('otN').oninput=hint;
+ $('otF2').onchange=async()=>{const f=$('otF2').files[0];if(!f||typeof JSZip==='undefined')return;
+  try{PF=await onsiteEngine().portfolioSites(await f.arrayBuffer())}catch(e){PF=[]}
+  $('otList').innerHTML='';PF.forEach(p=>{const o=document.createElement('option');o.value=p;$('otList').appendChild(o)});
+  if(PF.length){const cur=$('otN').value.replace(/\s+/g,' ').trim();if(!PF.includes(cur)){const m=PF.find(p=>p.toLowerCase()===cur.toLowerCase());if(m)$('otN').value=m}}
+  hint()};
  sb.onclick=e=>{if(e.target===sb)sb.remove()};$('otX').onclick=()=>sb.remove();
  $('otGo').onclick=async()=>{
   const msg=$('otMsg'),f1=$('otF1').files[0],f2=$('otF2').files[0];
@@ -1502,11 +1572,13 @@ function openOnsiteSheet(sv){
   try{
    const b1=f1?await f1.arrayBuffer():await LASTFILL.blob.arrayBuffer(),b2=await f2.arrayBuffer(),E=onsiteEngine();
    const m=await E.masterFromSdc(b1);
-   const nm=$('otN').value.trim()||m.siteName;
-   const r=await E.fillSurveyTool(b2,m,{siteName:nm});
-   const nd=r.expanded.filter(x=>x[7]==='No Destination').length;
-   dl(r.blob,f2.name.replace(/\.xlsm$/i,'')+'_ONSITE_FILLED.xlsm');
-   msg.textContent='Done. '+r.inputRows+' rows written to Input Onsite Data and '+r.outputRows+' to Output Onsite Data ('+nd+' marked "No Destination", as the macro does).\nOpen the file in Excel and let it recalculate, then carry on with the ESO tabs.';
+   const nm=$('otN').value.replace(/\s+/g,' ').trim()||m.siteName;
+   const r=await E.fillSurveyTool(b2,m,{siteName:nm,replaceAll:$('otR').checked});
+   const nd=r.expanded.filter(x=>x[7]==='No Destination').length,w=[];
+   if(r.inPortfolio===false)w.push('⚠ "'+nm+'" is not on the tool\'s Portfolio tab, so its rows will not link to rates or consumption. Check the spelling.');
+   if(r.eso.eso7>r.eso.capacity||r.eso.eso8>r.eso.capacity)w.push('⚠ ESO-7 would need up to '+r.eso.eso7+' rows and ESO-8 up to '+r.eso.eso8+', but only '+r.eso.capacity+' rows (6–40) have formulas. Fill the formulas down in Excel after running the ESO-7 / ESO-8 macros.');
+   dl(r.blob,f2.name.replace(/(_ONSITE_FILLED)?\.xlsm$/i,'')+'_ONSITE_FILLED.xlsm');
+   msg.textContent='Done. '+(r.replacedRows?'Replaced the '+r.replacedRows+' rows already there for this site. ':'')+r.newRows+' rows added for "'+nm+'".\nThe tool now holds '+r.sites.length+' site'+(r.sites.length>1?'s':'')+': '+r.sites.join(', ')+'.\n'+r.inputRows+' rows on Input Onsite Data, '+r.outputRows+' on Output Onsite Data ('+nd+' "No Destination", as the macro does). ESO-7 up to '+r.eso.eso7+' rows, ESO-8 up to '+r.eso.eso8+' (of '+r.eso.capacity+').'+(w.length?'\n\n'+w.join('\n'):'')+'\n\nOpen the file in Excel and let it recalculate. For the next site, pick THIS downloaded file as the tool.';
    toast('Downloaded filled Energy Survey Tool');
   }catch(e){console.error(e);msg.textContent='Could not build it: '+(e&&e.message?e.message:'see console')}
   $('otGo').disabled=false;
