@@ -551,6 +551,7 @@ const RENDER_ORDER={heating:[0,1,2,3,8,9,4,5,6,7]};
 function blocks(sh,o,sv){let h='';const order=RENDER_ORDER[sh]||S[sh].blocks.map((_,i)=>i);order.forEach(bi=>{const b=S[sh].blocks[bi];if(!vis(sh,bi,o))return;const n=getN(sh,o,bi),m=hasM(b);
  for(let i=0;i<Math.max(n,b.rep?0:1);i++){const need=!b.rep||i==0||b.f.some((f,fi)=>o.v[kk(bi,i,fi)]);const rq=b.f.filter(f=>f[1]==='M'&&f[2]!=='auto'),ot=b.f.map((f,fi)=>[f,fi]).filter(([f])=>!(f[1]==='M'&&f[2]!=='auto'));
   const title=blockTitle(sh,bi,o,i);let body='';
+  if(sh==='lighting'&&b.n==='Type of Lighting'&&i>0)body+=`<button class="gh" type="button" data-cpy="${bi}.${i}" style="margin-bottom:.6rem">Copy operating hours from Type of Lighting 1</button>`;
   if((sh==='ventilation'||sh==='dhw')&&b.n==='Surveyor Estimate')body+=`<button class="gh" type="button" data-typ="${bi}.${i}.est" style="margin-bottom:.6rem">Typical values for washroom equipment (nameplate not seen)</button>`;
   if((sh==='smallpower'||sh==='catering')&&b.n==='Equipment')body+=`<button class="gh" type="button" data-typ="${bi}.${i}" style="margin-bottom:.6rem">Typical values (nameplate not seen)</button>`;
   if(m)body+=b.f.map((f,fi)=>f[1]==='M'&&f[2]!=='auto'?fld(sh,bi,i,fi,f,o,sv,need):'').join('');
@@ -576,6 +577,10 @@ if(el.dataset.z!==undefined){sv.zones[el.dataset.z]=el.value;save(sv);return}if(
   banner(sh,o)};
  root.onclick=e=>{const t=e.target.closest('button');if(!t)return;
   if(t.dataset.ldref!==undefined){ldRef();return}
+  if(t.dataset.cpy!==undefined){const [cb,ci]=t.dataset.cpy.split('.').map(Number),B=S[sh].blocks[cb],fis=B.f.map((f,fi)=>[f[0],fi]).filter(([l])=>/ (Start|End) Time$|^Operating Weeks per Annum$/.test(l)).map(x=>x[1]);
+   if(!fis.some(fi=>o.v[kk(cb,0,fi)])){toast('Type of Lighting 1 has no operating hours to copy yet');return}
+   if(fis.some(fi=>o.v[kk(cb,ci,fi)])&&!confirm('Replace the operating hours already entered for this lighting type?'))return;
+   fis.forEach(fi=>{const v=o.v[kk(cb,0,fi)];if(v)o.v[kk(cb,ci,fi)]=v;else delete o.v[kk(cb,ci,fi)]});save(sv);repaint();toast('Operating hours copied from Type of Lighting 1');return}
   if(t.dataset.typ!==undefined){const q=t.dataset.typ.split('.'),p=q.map(Number);openTypical(sh,o,sv,p[0],p[1],repaint,q[2]==='est');return}
   if(t.dataset.ma){const w=root.querySelector('[data-mw="'+t.dataset.ma+'"]'),d=document.createElement('div');d.className='inp';d.style.marginBottom='.4rem';d.innerHTML='<input inputmode="numeric" placeholder="'+w.querySelector('input').placeholder+'">';d.firstChild.dataset.mi=t.dataset.ma;w.appendChild(d);d.firstChild.focus();return}
   if(t.dataset.fill!==undefined){const M=ids(sv),mb=S.general.blocks.findIndex(b=>b.n==='Meter Register'),bl=S.general.blocks[mb];let n=getN('general',o,mb);[...M.mpan.map(x=>[x,'Electricity']),...M.mprn.map(x=>[x,'Gas'])].forEach(([id,fu])=>{if(M.reg.includes(id))return;let i=0;for(;i<n;i++)if(!o.v[kk(mb,i,0)])break;if(i===n)n++;o.v[kk(mb,i,0)]=id;o.v[kk(mb,i,1)]=fu});o.n[mb]=n;save(sv);repaint();return}
