@@ -2051,20 +2051,20 @@ async function exportAnalysis(sv){
  if(typeof JSZip==='undefined'){toast('Zip library not loaded — check your internet connection and try again');return}
  toast('Preparing analysis pack…');
  try{
-  const all=await mediaForSurvey(sv).catch(()=>[]);
+  const all=await Promise.race([mediaForSurvey(sv),new Promise(r=>setTimeout(()=>r(null),15000))]).catch(()=>null)||await mAll().then(a=>a.filter(m=>m.owner.startsWith(sv.id+'|'))).catch(()=>[]);
   const zip=new JSZip(),site=(gv('general',sv.gen,'Site Name')||'site'),cust=gv('general',sv.gen,'Customer Name')||'';
   const safe=site.replace(/\W+/g,'_');
   zip.file('survey_answers.csv',rowsFor(sv).map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n'));
   zip.file('survey_answers.json',JSON.stringify(rowsToObjects(sv),null,1));
   const manifest=[],skipped=[],used={};
-  for(const m of all){
+  let done=0;for(const m of all){done++;toast('Preparing analysis pack… item '+done+' of '+all.length);await new Promise(r=>setTimeout(r,0));
    const own=m.owner.split('|')[1];
    const secKey=own==='general'?'general':own==='cust'?null:ALL.find(s=>(sv.entries[s]||[]).some(e=>e.id===own));
    const nm=own==='cust'?'Customer_Notes':secKey?String((S[secKey]&&S[secKey].label)||secKey).replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,''):'Other_items';
    const list=secKey&&secKey!=='general'?(sv.entries[secKey]||[]):[];
    const entryNo=list.findIndex(e=>e.id===own)+1;
    let blob=m.blob;
-   if(!blob&&m.remote&&m.url){try{const r=await fetch(m.url);if(!r.ok)throw 0;blob=await r.blob()}catch(e){}}
+   if(!blob&&m.remote&&m.url){try{const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),15000);const r=await fetch(m.url,{signal:ac.signal});clearTimeout(tm);if(!r.ok)throw 0;blob=await r.blob()}catch(e){}}
    if(!blob){skipped.push(nm+' - '+(m.name||m.kind));continue}
    const base=nm+(entryNo?'_Entry'+entryNo:'');
    let path;
@@ -2076,9 +2076,10 @@ async function exportAnalysis(sv){
   }
   zip.file('manifest.json',JSON.stringify({site,customer:cust,exported:new Date().toISOString(),counts:{photos:manifest.filter(x=>x.kind==='photo').length,voice_notes:manifest.filter(x=>x.kind!=='photo'&&x.kind!=='doc').length,documents:manifest.filter(x=>x.kind==='doc').length},skipped,files:manifest},null,1));
   zip.file('README.txt','ESOS analysis pack for '+site+(cust?' ('+cust+')':'')+'\n\nsurvey_answers.csv / .json : every answer entered in the app (same rows as Export CSV).\nphotos/<Section>/ : photos resized to 1600 px, named by section and entry number.\nvoice_notes/ : audio recordings (need transcribing).\ndocuments/ : uploaded documents.\nmanifest.json : which file belongs to which section and entry.\n\nGive this zip to Claude and ask: "Analyse this site pack".\n');
-  dl(await zip.generateAsync({type:'blob',compression:'DEFLATE'}),safe+'_analysis_pack.zip');
+  toast('Building zip…');const zb=await zip.generateAsync({type:'blob',compression:'STORE'});
+  dl(zb,safe+'_analysis_pack.zip');
   toast(skipped.length?'Downloaded — '+skipped.length+' item(s) skipped (cloud copy not reachable)':'Analysis pack downloaded');
- }catch(e){console.error('exportAnalysis',e);toast('Could not build the analysis pack — '+(e&&e.message?e.message:'see console'))}
+ }catch(e){console.error('exportAnalysis',e);alert('Could not build the analysis pack — '+(e&&e.message?e.message:'see console'))}
 }
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)navigator.serviceWorker.register('sw.js').catch(()=>{});
