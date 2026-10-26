@@ -631,7 +631,7 @@ function paint(){const sv=D[V.id];$('bar').style.display='flex';
   $('custNotes').oninput=()=>{rec.notes=$('custNotes').value;saveCust(key)};
   loadMedia($('main'));return}
  if(V.s==='sv'){$('crumb').innerHTML='<a id="bk">← All surveys</a> / '+esc(gv('general',sv.gen,'Site Name'));$('bk').onclick=()=>go('dash');
-  $('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="gh" id="ex">Export CSV</button><button class="gh" id="ph">Download photos &amp; notes</button><button class="gh" id="fw">Fill real workbook</button><button class="gh" id="ot">Fill Survey Tool</button><button class="gh" id="qa">Fill QA checklist</button><input type="file" id="fwFile" accept=".xlsm,.xlsx" style="display:none">';$('bb').onclick=()=>go('dash');$('ex').onclick=()=>exportCsv(sv);$('ph').onclick=()=>exportMedia(sv);$('fw').onclick=()=>$('fwFile').click();$('ot').onclick=()=>openOnsiteSheet(sv);$('qa').onclick=()=>openQaSheet(sv);$('fwFile').onchange=()=>{const f=$('fwFile').files[0];$('fwFile').value='';if(f)fillRealWorkbook(sv,f)};
+  $('bar').innerHTML='<button class="gh" id="bb">← Back</button><button class="gh" id="ex">Export CSV</button><button class="gh" id="ph">Download photos &amp; notes</button><button class="gh" id="an">Export for analysis</button><button class="gh" id="fw">Fill real workbook</button><button class="gh" id="ot">Fill Survey Tool</button><button class="gh" id="qa">Fill QA checklist</button><input type="file" id="fwFile" accept=".xlsm,.xlsx" style="display:none">';$('bb').onclick=()=>go('dash');$('ex').onclick=()=>exportCsv(sv);$('ph').onclick=()=>exportMedia(sv);$('an').onclick=()=>exportAnalysis(sv);$('fw').onclick=()=>$('fwFile').click();$('ot').onclick=()=>openOnsiteSheet(sv);$('qa').onclick=()=>openQaSheet(sv);$('fwFile').onchange=()=>{const f=$('fwFile').files[0];$('fwFile').value='';if(f)fillRealWorkbook(sv,f)};
   const done=ALL.filter(s=>['g','n'].includes(status(sv,s))).length,st=gv('general',sv.gen,'Site Type');
   $('main').innerHTML=`<div class="sum"><b>${done} of ${ALL.length}</b> sections complete${st&&S.expected[st]?`<br>Expected for a ${esc(st).toLowerCase()} site: ${esc(S.expected[st])}`:''}</div>`+summaryHtml(sv)+`<div class="sec">Sections</div>`+ALL.map(s=>{const x=status(sv,s),m=s==='general'?miss('general',sv.gen).length:(sv.entries[s]||[]).reduce((a,e)=>a+miss(s,e).length,0),c=(sv.entries[s]||[]).length;
    return `<button class="row" data-s="${s}"><span class="dot ${x}"></span><span class="t">${s==='general'?'General (site, meters, zones)':S[s].label}<small>${ST[x]}${x==='a'||(x==='r'&&s==='general'&&m)?' — '+m+' required left':''}${s!=='general'&&c?' — '+c+' logged':''}</small></span></button>`}).join('');
@@ -2043,6 +2043,42 @@ async function exportMedia(sv){
    toast('Downloaded zip');
   }
  }catch(e){console.error('zip generation failed',e);toast('Could not build the zip file — '+(e&&e.message?e.message:'see console'))}
+}
+
+// ---------- Export for analysis: one compact zip (answers + resized photos + voice notes + documents + manifest) to hand to Claude ----------
+async function shrinkPhoto(blob,max){try{const bm=await createImageBitmap(blob);const sc=Math.min(1,max/Math.max(bm.width,bm.height));const w=Math.round(bm.width*sc),h=Math.round(bm.height*sc);const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(bm,0,0,w,h);return await new Promise(r=>c.toBlob(b=>r(b||blob),'image/jpeg',0.82))}catch(e){return blob}}
+async function exportAnalysis(sv){
+ if(typeof JSZip==='undefined'){toast('Zip library not loaded — check your internet connection and try again');return}
+ toast('Preparing analysis pack…');
+ try{
+  const all=await mediaForSurvey(sv).catch(()=>[]);
+  const zip=new JSZip(),site=(gv('general',sv.gen,'Site Name')||'site'),cust=gv('general',sv.gen,'Customer Name')||'';
+  const safe=site.replace(/\W+/g,'_');
+  zip.file('survey_answers.csv',rowsFor(sv).map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n'));
+  zip.file('survey_answers.json',JSON.stringify(rowsToObjects(sv),null,1));
+  const manifest=[],skipped=[],used={};
+  for(const m of all){
+   const own=m.owner.split('|')[1];
+   const secKey=own==='general'?'general':own==='cust'?null:ALL.find(s=>(sv.entries[s]||[]).some(e=>e.id===own));
+   const nm=own==='cust'?'Customer_Notes':secKey?String((S[secKey]&&S[secKey].label)||secKey).replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,''):'Other_items';
+   const list=secKey&&secKey!=='general'?(sv.entries[secKey]||[]):[];
+   const entryNo=list.findIndex(e=>e.id===own)+1;
+   let blob=m.blob;
+   if(!blob&&m.remote&&m.url){try{const r=await fetch(m.url);if(!r.ok)throw 0;blob=await r.blob()}catch(e){}}
+   if(!blob){skipped.push(nm+' - '+(m.name||m.kind));continue}
+   const base=nm+(entryNo?'_Entry'+entryNo:'');
+   let path;
+   if(m.kind==='photo'){const k=base+'|p';used[k]=(used[k]||0)+1;path='photos/'+nm+'/'+base+'_'+used[k]+'.jpg';blob=await shrinkPhoto(blob,1600)}
+   else if(m.kind==='doc'){const dn=String(m.name||'document').replace(/[\\/:*?"<>|]+/g,'_');const k=base+'|d'+dn;used[k]=(used[k]||0)+1;path='documents/'+nm+'/'+(used[k]>1?used[k]+'_':'')+dn}
+   else{const k=base+'|v';used[k]=(used[k]||0)+1;path='voice_notes/'+nm+'/'+base+'_'+used[k]+((blob.type||'').includes('mp4')?'.m4a':(blob.type||'').includes('webm')?'.webm':'.m4a')}
+   zip.file(path,blob);
+   manifest.push({file:path,kind:m.kind,section:secKey?(S[secKey]&&S[secKey].label)||secKey:(own==='cust'?'Customer notes':'Other'),entry:entryNo||null,original_name:m.name||'',taken:m.ts?new Date(m.ts).toISOString():''});
+  }
+  zip.file('manifest.json',JSON.stringify({site,customer:cust,exported:new Date().toISOString(),counts:{photos:manifest.filter(x=>x.kind==='photo').length,voice_notes:manifest.filter(x=>x.kind!=='photo'&&x.kind!=='doc').length,documents:manifest.filter(x=>x.kind==='doc').length},skipped,files:manifest},null,1));
+  zip.file('README.txt','ESOS analysis pack for '+site+(cust?' ('+cust+')':'')+'\n\nsurvey_answers.csv / .json : every answer entered in the app (same rows as Export CSV).\nphotos/<Section>/ : photos resized to 1600 px, named by section and entry number.\nvoice_notes/ : audio recordings (need transcribing).\ndocuments/ : uploaded documents.\nmanifest.json : which file belongs to which section and entry.\n\nGive this zip to Claude and ask: "Analyse this site pack".\n');
+  dl(await zip.generateAsync({type:'blob',compression:'DEFLATE'}),safe+'_analysis_pack.zip');
+  toast(skipped.length?'Downloaded — '+skipped.length+' item(s) skipped (cloud copy not reachable)':'Analysis pack downloaded');
+ }catch(e){console.error('exportAnalysis',e);toast('Could not build the analysis pack — '+(e&&e.message?e.message:'see console'))}
 }
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 if('serviceWorker' in navigator&&location.protocol.indexOf('http')===0)navigator.serviceWorker.register('sw.js').catch(()=>{});
