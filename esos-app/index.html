@@ -917,6 +917,7 @@ function makeFillWorkbook({ JSZip, DOMParser, XMLSerializer }) {
   // Sheet, Entry, Zone, Block, Instance, Field, Requirement, Type, Value, Row, Overflow
   async function fillWorkbook(rows, templateArrayBuffer, opts) {
     opts = opts || {};
+    rows = rows.map(r => Object.assign({}, r)); // work on copies: rows are re-pointed to the template's real layout below
     const zin = await JSZip.loadAsync(templateArrayBuffer);
     const parser = new DOMParser();
     const serializer = new XMLSerializer();
@@ -1119,6 +1120,84 @@ function makeFillWorkbook({ JSZip, DOMParser, XMLSerializer }) {
 
     const trees = {};
     const rowRedirect = {};
+
+    // ---- Follow the uploaded template's own layout (non-General sheets) ----------------------------
+    // The row numbers in `rows` come from the app's schema, i.e. the original blank template. If the
+    // template has been extended (e.g. extra 'Type of Lighting' or 'Equipment' blocks inserted), those
+    // numbers are out of date: extra items would be stacked into the last block and the Surveyor
+    // Estimate / ESO / Comments rows would land inside the new blocks. So each sheet is read here and
+    // every answer is re-pointed by its labels: column C (block, e.g. 'Type of Lighting 7') and column D
+    // (field). On an unchanged template this gives exactly the original rows.
+    if (opts.blockInfo) {
+      const norm = (x) => String(x == null ? '' : x).replace(/\s+/g, ' ').trim().toLowerCase();
+      const sstL = await getSharedStrings();
+      const bySheet = {};
+      rows.forEach(r => { if (r.Sheet !== 'General' && hasVal(r.Row) && paths[r.Sheet]) (bySheet[r.Sheet] = bySheet[r.Sheet] || []).push(r); });
+      let moved = 0, unpacked = 0;
+      for (const sheet of Object.keys(bySheet)) {
+        const doc = trees[sheet] || (trees[sheet] = await readXml(paths[sheet]));
+        const lab = {}; const order = [];
+        Array.from(doc.getElementsByTagNameNS(NS, 'row')).forEach(rw => {
+          const rn = parseInt(rw.getAttribute('r'), 10); if (!(rn >= 2)) return;
+          const o = { c: '', d: '' };
+          Array.from(rw.getElementsByTagNameNS(NS, 'c')).forEach(c => {
+            const col = c.getAttribute('r').match(/^[A-Z]+/)[0];
+            if (col === 'C') o.c = norm(cellText(c, sstL)); else if (col === 'D') o.d = norm(cellText(c, sstL));
+          });
+          lab[rn] = o; order.push(rn);
+        });
+        order.sort((x, y) => x - y);
+        // groups = runs of rows sharing one column-C label (rows with a blank C stay in the current group)
+        const groups = [], groupOf = {}; let cur = null;
+        for (const rn of order) {
+          const c = lab[rn].c;
+          if (c && (!cur || cur.label !== c)) { cur = { label: c, rows: [] }; groups.push(cur); }
+          if (cur) { cur.rows.push(rn); groupOf[rn] = cur; }
+        }
+        const findIn = (g, want, occ) => { let n = 0; for (const rn of g.rows) if (lab[rn].d === want) { if (n === occ) return rn; n++; } return null; };
+        for (const r of bySheet[sheet]) {
+          const cands = opts.blockInfo[sheet + '|' + r.Block]; if (!cands) continue;
+          const R0 = Number(r.Row), i = Math.max(0, (Number(r.Instance) || 1) - 1), want = norm(r.Field);
+          let def = null, fld = null;
+          for (const b of cands) {
+            const k = Math.min(i, b.inst.length - 1), off = R0 - b.inst[k];
+            const f = b.fields.find(x => x[1] - b.inst[0] === off && norm(x[0]) === want);
+            if (f) { def = b; fld = f; break; }
+          }
+          if (!def) continue;
+          if (!def.rep && cands.length > 1) continue; // two schema blocks share this name: leave as before
+          const occ = def.fields.filter(x => x[1] < fld[1] && norm(x[0]) === want).length;
+          const nDef = def.fields.filter(x => norm(x[0]) === want).length;
+          const sameShape = (g) => g.rows.filter(rn => lab[rn].d === want).length === nDef;
+          let target = null;
+          if (def.rep) {
+            // instance 1 sits at the schema row; its block label (e.g. 'type of lighting 1') gives the numbering
+            const g0 = lab[fld[1]] && lab[fld[1]].d === want ? groupOf[fld[1]] : null;
+            const m = g0 && /^(.*) (\d+)$/.exec(g0.label);
+            if (m) {
+              const tl = m[1] + ' ' + (Number(m[2]) + i);
+              const g = groups.find(x => x.label === tl);
+              if (g && sameShape(g)) target = findIn(g, want, occ);
+              else {
+                // more items than blocks even in this template: stack them into its LAST block, not the schema's
+                const nums = groups.map(x => { const mm = /^(.*) (\d+)$/.exec(x.label); return mm && mm[1] === m[1] ? Number(mm[2]) : 0; });
+                const mx = Math.max(0, ...nums);
+                if (mx > Number(m[2]) + i - 1 || mx === 0) { /* gap in numbering: leave as before */ }
+                else { const gl = groups[nums.indexOf(mx)]; if (sameShape(gl)) { const t2 = findIn(gl, want, occ); if (t2 != null) { r.Row = t2; r.Overflow = 1; } } }
+              }
+            }
+          } else {
+            const gs = groups.filter(x => x.label === norm(def.n));
+            if (gs.length === 1 && sameShape(gs[0])) target = findIn(gs[0], want, occ);
+          }
+          if (target == null) continue; // not recognised: keep the schema row (previous behaviour)
+          if (String(r.Overflow) === '1') unpacked++;
+          if (target !== R0) moved++;
+          r.Row = target; r.Overflow = '';
+        }
+      }
+      if (unpacked) notes.push(`Template has extra blocks: ${unpacked} answer(s) that did not fit the original template were written into their own blocks`);
+    }
 
     if (Object.keys(overflowGroups).length && paths['General']) {
       const genDoc = await readXml(paths['General']);
@@ -1409,6 +1488,9 @@ const wbEngine=()=>makeFillWorkbook({JSZip:typeof JSZip!=='undefined'?JSZip:unde
 async function wbFillWorkbook(rows,buf,opts){opts=Object.assign({outputType:'blob'},opts||{});return wbEngine().fillWorkbook(rows,buf,opts)}
 function wbPlanNumbers(rows){return wbEngine().planNumbers(rows)}
 // Every row of each General block (not just the ones holding a value) so cloned extra entries - e.g. Meter 2 - are complete.
+// Schema of every non-General block (instance rows + field rows) so the fill can re-point answers to the
+// uploaded template's real layout when blocks have been added to it.
+function wbBlockInfo(){const o={};ALL.forEach(sh=>{if(sh==='general')return;S[sh].blocks.forEach(b=>{if(!Array.isArray(b.inst)||!b.inst.length)return;const fields=b.f.filter(f=>f.length>5&&f[5]!=null).map(f=>[f[0],f[5]]);if(!fields.length)return;const k=S[sh].label+'|'+b.n;(o[k]=o[k]||[]).push({n:b.n,rep:!!b.rep||b.inst.length>1,inst:b.inst,fields})})});return o}
 function wbBlockRows(){const o={};S.general.blocks.forEach(b=>{if(Array.isArray(b.inst)&&b.inst.length)o[b.n]=b.f.filter(f=>f.length>5&&f[5]!=null).map(f=>f[5])});return o}
 // ---------- fill the Energy Survey Tool's Input/Output Onsite Data (port of two Inspired macros) ----------
 // ---------- Site Data Collection -> Energy Survey Tool "Input/Output Onsite Data" (port of Inspired VBA) ----------
@@ -2098,14 +2180,14 @@ async function fillRealWorkbook(sv,file){
  let buf;
  try{buf=await file.arrayBuffer()}catch(e){alert('Could not read that file — please try again');return}
  let res;
- try{res=await wbFillWorkbook(rows,buf,{blockRows:wbBlockRows()})}catch(e){console.error('fill failed',e);alert('Could not fill the workbook — '+(e&&e.message?e.message:'see console')+'. Make sure you selected the correct Inspired .xlsm file.');return}
+ try{res=await wbFillWorkbook(rows,buf,{blockRows:wbBlockRows(),blockInfo:wbBlockInfo()})}catch(e){console.error('fill failed',e);alert('Could not fill the workbook — '+(e&&e.message?e.message:'see console')+'. Make sure you selected the correct Inspired .xlsm file.');return}
  if(!res.ok){
   const plan=wbPlanNumbers(rows);
   const goAhead=confirm('This workbook isn\'t set up for the amount of data in this survey yet.\n\nMissing columns:\n'+res.missingCols.map(m=>'• '+m).join('\n')+
    '\n\nTo fix this properly: open your BLANK Inspired workbook, go to the Setup tab, enter:\n  Number of Zones = '+plan.zones+'\n  Number of Fields for Population = '+plan.maxFields+
    '\nrun the Setup macro, save it, then pick that file here instead.\n\nOr press OK to fill anyway — entries that don\'t fit will be appended into the nearest cell instead of their own column/row, flagged below.');
   if(!goAhead)return;
-  try{res=await wbFillWorkbook(rows,buf,{force:true,blockRows:wbBlockRows()})}catch(e){console.error('forced fill failed',e);alert('Could not fill the workbook — '+(e&&e.message?e.message:'see console'));return}
+  try{res=await wbFillWorkbook(rows,buf,{force:true,blockRows:wbBlockRows(),blockInfo:wbBlockInfo()})}catch(e){console.error('forced fill failed',e);alert('Could not fill the workbook — '+(e&&e.message?e.message:'see console'));return}
  }
  let fy=null;try{fy=localStorage.getItem(fyKey(sv))}catch(e){}
  if(!fy){const a=prompt('Which financial year is this project (e.g. 25)? This only names the file. The app reads it from the Energy Survey Tool\'s Report dates once you use Fill Survey Tool for this client.','25');fy='FY'+((a||'').replace(/\D/g,'').slice(-2)||'25');}
